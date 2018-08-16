@@ -64,6 +64,14 @@ class Board:
                     newRow.append(BoardItem("terrain", "wall"))
                 elif cell == '*':
                     newRow.append(BoardItem("terrain", "water"))
+                elif cell == "s":
+                    newRow.append(BoardItem("item", "sword"))
+                elif cell == "a":
+                    newRow.append(BoardItem("item", "axe"))
+                elif cell == "b":
+                    newRow.append(BoardItem("item", "bow"))
+                elif cell == "m":
+                    newRow.append(BoardItem("item", "mushroom"))
                 else:
                     newRow.append(BoardItem("terrain", "grass"))
             self.grid.append(newRow)
@@ -83,7 +91,7 @@ class BoardItem:
     def __init__(self, mainType, subType):
         self.id = self.boardItemNextId
         self.boardItemNextId += 1
-        self.mainType = type
+        self.mainType = mainType
         self.subType = subType
 
 
@@ -113,28 +121,32 @@ class Hero:
         elif direction == MoveDir.LEFT:
             newX -= 1
         
-        # Can move into next cell?
-        if self.isBlocked(board, newX, newY):
-            return
+        # Check bounds and if move into next cell?
+        if newX >= 0 and newX < width and newY >= 0 and newY < height:
+            if not self.isBlocked(board, newX, newY):
+                self.x = newX
+                self.y = newY
 
-        # Check bounds
-        if newX > 0 and newX < width:
-            self.x = newX
-        if newY > 0 and newY < height:
-            self.y = newY
             
     def isBlocked(self, board, newX, newY):
-        nextCellType = board.grid[newY][newX].type
-        nextCellSubType = board.grid[newY][newX].subType
-        if nextCellSubType == "grass":
+        boardItem = board.grid[newY][newX]
+        boardItemType = boardItem.mainType
+        boardItemSubType = boardItem.subType
+
+        if boardItemSubType == "grass":
             return False
 
         # Terrain
-        if nextCellSubType == "water":
+        if boardItemSubType == "water":
             if "waterwalking" not in self.mods:
                 return True
-        if nextCellSubType == "wall":
+        if boardItemSubType == "wall":
             return True
+
+        # Pick up items
+        if boardItemType == "item":
+            self.inventory.append(boardItem)
+            board.grid[newY][newX] = BoardItem("terrain", "grass")
 
         return False
 
@@ -158,6 +170,14 @@ def draw(stdscr, game):
                 stdscr.addstr(y, x, "*", curses.color_pair(Colors.WATER))
             elif cell.subType == "wall":
                 stdscr.addstr(y, x, "-", curses.color_pair(Colors.WALL))
+            elif cell.subType == "sword":
+                stdscr.addstr(y, x, "s", curses.color_pair(Colors.WALL))
+            elif cell.subType == "axe":
+                stdscr.addstr(y, x, "a", curses.color_pair(Colors.WALL))
+            elif cell.subType == "bow":
+                stdscr.addstr(y, x, "b", curses.color_pair(Colors.WALL))
+            elif cell.subType == "mushroom":
+                stdscr.addstr(y, x, "m", curses.color_pair(Colors.WALL))
             else:
                 stdscr.addstr(y, x, "x", curses.color_pair(Colors.GRASS))
 

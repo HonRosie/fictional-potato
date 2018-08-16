@@ -27,7 +27,7 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"""
 debugStr = ""
 
 #################################
-# Board
+# Game
 #################################
 class Game:
     def __init__(self):
@@ -171,13 +171,13 @@ def draw(stdscr, game):
             elif cell.subType == "wall":
                 stdscr.addstr(y, x, "-", curses.color_pair(Colors.WALL))
             elif cell.subType == "sword":
-                stdscr.addstr(y, x, "s", curses.color_pair(Colors.WALL))
+                stdscr.addstr(y, x, "s", curses.color_pair(Colors.ITEMS))
             elif cell.subType == "axe":
-                stdscr.addstr(y, x, "a", curses.color_pair(Colors.WALL))
+                stdscr.addstr(y, x, "a", curses.color_pair(Colors.ITEMS))
             elif cell.subType == "bow":
-                stdscr.addstr(y, x, "b", curses.color_pair(Colors.WALL))
+                stdscr.addstr(y, x, "b", curses.color_pair(Colors.ITEMS))
             elif cell.subType == "mushroom":
-                stdscr.addstr(y, x, "m", curses.color_pair(Colors.WALL))
+                stdscr.addstr(y, x, "m", curses.color_pair(Colors.ITEMS))
             else:
                 stdscr.addstr(y, x, "x", curses.color_pair(Colors.GRASS))
 
@@ -185,6 +185,14 @@ def draw(stdscr, game):
     heroX = game.hero.x + game.boardOriginX
     heroY = game.hero.y + game.boardOriginY
     stdscr.addstr(heroY, heroX, "h", curses.color_pair(Colors.HERO))
+
+    # Draw inventory
+    stdscr.addstr(0, 0, "Inventory", curses.color_pair(Colors.INVENTORY))
+    inventory = game.hero.inventory
+    inventoryYIdx = 1
+    for item in inventory:
+        stdscr.addstr(inventoryYIdx, 0, item.subType, curses.color_pair(Colors.ITEMS))
+        inventoryYIdx += 1
 
     # Draw debug panel
     global debugStr
@@ -233,7 +241,8 @@ class Colors(IntEnum):
     WATER = 3
     GRASS = 4
     WALL = 5
-    WEAPONS = 6
+    ITEMS = 6
+    INVENTORY = 7
 
 def initColors():
     # pair number, fg, bg
@@ -241,6 +250,9 @@ def initColors():
     curses.init_pair(Colors.WATER, 39, 0)
     curses.init_pair(Colors.WALL, 7, 0)
     curses.init_pair(Colors.GRASS, 10, 0)
+    curses.init_pair(Colors.ITEMS, 255, 0)
+    curses.init_pair(Colors.INVENTORY, 118, 0)
+
 
 if __name__ == '__main__':
     # initialize curses

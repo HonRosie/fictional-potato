@@ -107,18 +107,18 @@ class Hero:
         self.inventory = []
         self.equip = {}
     
-    def move(self, board, direction):
+    def move(self, board, action):
         height = board.height
         width = board.width
 
         newX, newY = self.x, self.y
-        if direction == MoveDir.UP:
+        if action == Actions.UP:
             newY -= 1
-        elif direction == MoveDir.DOWN:
+        elif action == Actions.DOWN:
             newY += 1
-        elif direction == MoveDir.RIGHT:
+        elif action == Actions.RIGHT:
             newX += 1
-        elif direction == MoveDir.LEFT:
+        elif action == Actions.LEFT:
             newX -= 1
         
         # Check bounds and if move into next cell?
@@ -135,25 +135,26 @@ class Hero:
 
         if boardItemSubType == "grass":
             return False
-
-        # Terrain
         if boardItemSubType == "water":
-            if "waterwalking" not in self.mods:
-                return True
-        if boardItemSubType == "wall":
+            if "waterwalking" in self.mods:
+                return False
+        if boardItemType == "terrain" or boardItemType == "monsters":
             return True
-
-        # Pick up items
-        if boardItemType == "item":
-            self.inventory.append(boardItem)
-            board.grid[newY][newX] = BoardItem("terrain", "grass")
-
+        
+        # Default to not blocked
         return False
+
+    def pickup(self, board):
+        boardItem = board.grid[self.y][self.x]
+        # Pick up items
+        if boardItem.mainType == "item":
+            self.inventory.append(boardItem)
+            board.grid[self.y][self.x] = BoardItem("terrain", "grass")
 
 
 
 #################################
-# Game Logic
+# Paint
 #################################
 def draw(stdscr, game):
     # TODO: What's practical difference between erase and clear?
@@ -201,35 +202,41 @@ def draw(stdscr, game):
     # Paint 
     stdscr.refresh()
 
-class MoveDir(Enum):
+#################################
+# Game Loop
+#################################
+class Actions(Enum):
     UP = 1
     DOWN = 2
     LEFT = 3
     RIGHT = 4
+    
+
+actionMap = {
+    curses.KEY_DOWN: Actions.DOWN,
+    curses.KEY_UP: Actions.UP,
+    curses.KEY_RIGHT: Actions.RIGHT,
+    curses.KEY_LEFT: Actions.LEFT,
+}
 
 def main(stdscr):
     game = Game()
     game.initGame()
+    currBoard = game.boards[game.currBoardId]
+    hero = game.hero
 
     # Settings for nCurses
-    stdscr.nodelay(True)
     curses.curs_set(False)
     initColors()
 
     while True:
         draw(stdscr, game)
         key = stdscr.getch()
-        currBoard = game.boards[game.currBoardId]
         if key == ord("q"):
             break
-        elif key == curses.KEY_DOWN:
-            game.hero.move(currBoard, MoveDir.DOWN)
-        elif key == curses.KEY_UP:
-            game.hero.move(currBoard, MoveDir.UP)
-        elif key == curses.KEY_RIGHT:
-            game.hero.move(currBoard, MoveDir.RIGHT)
-        elif key == curses.KEY_LEFT:
-            game.hero.move(currBoard, MoveDir.LEFT)
+        action = actionMap[key]
+        hero.move(currBoard, action)
+        hero.pickup(currBoard)
 
 
 #################################

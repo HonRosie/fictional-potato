@@ -26,6 +26,9 @@ xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"""
 
 debugStr = ""
 
+#################################
+# Board
+#################################
 class Game:
     def __init__(self):
         self.mode = "play"
@@ -36,11 +39,15 @@ class Game:
         self.boardOriginY = 20
 
     def initGame(self):
+        # Initialize all boards.
+        # TODO: Probably means this should be done in a for loop?
         board = Board()
         self.boards[board.id] = board
         self.hero = Hero()
 
-
+#################################
+# Board
+#################################
 class Board:
     nextBoardId = 0
     def __init__(self):
@@ -48,6 +55,7 @@ class Board:
         self.nextBoardId += 1
         self.grid = []
 
+        # Eventually when generating terrain, this possibly should just initialize a x by y grid of grass
         board = mainBoard.split("\n")
         for row in board:
             newRow = []
@@ -63,6 +71,12 @@ class Board:
         self.height = len(self.grid)
         self.width = len(self.grid[0])
 
+        # Generate items?
+
+        # Generate monsters?
+
+        # Generate terrain??
+
 
 class BoardItem:
     boardItemNextId = 0
@@ -72,6 +86,10 @@ class BoardItem:
         self.mainType = type
         self.subType = subType
 
+
+#################################
+# Board
+#################################
 class Hero:
     def __init__(self):
         self.x = 0
@@ -81,7 +99,10 @@ class Hero:
         self.inventory = []
         self.equip = {}
     
-    def move(self, direction, height, width):
+    def move(self, board, direction):
+        height = board.height
+        width = board.width
+
         newX, newY = self.x, self.y
         if direction == MoveDir.UP:
             newY -= 1
@@ -92,16 +113,38 @@ class Hero:
         elif direction == MoveDir.LEFT:
             newX -= 1
         
-        # Check for bounds
+        # Can move into next cell?
+        if self.isBlocked(board, newX, newY):
+            return
+
+        # Check bounds
         if newX > 0 and newX < width:
             self.x = newX
         if newY > 0 and newY < height:
             self.y = newY
             
+    def isBlocked(self, board, newX, newY):
+        nextCellType = board.grid[newY][newX].type
+        nextCellSubType = board.grid[newY][newX].subType
+        if nextCellSubType == "grass":
+            return False
+
+        # Terrain
+        if nextCellSubType == "water":
+            if "waterwalking" not in self.mods:
+                return True
+        if nextCellSubType == "wall":
+            return True
+
+        return False
 
 
+
+#################################
+# Game Logic
+#################################
 def draw(stdscr, game):
-    # What's practical difference between erase and clear?
+    # TODO: What's practical difference between erase and clear?
     # Clears the current screen
     stdscr.erase()
 
@@ -127,7 +170,7 @@ def draw(stdscr, game):
     global debugStr
     stdscr.addstr(0, 100, debugStr)
 
-    # Draw 
+    # Paint 
     stdscr.refresh()
 
 class MoveDir(Enum):
@@ -152,14 +195,18 @@ def main(stdscr):
         if key == ord("q"):
             break
         elif key == curses.KEY_DOWN:
-            game.hero.move(MoveDir.DOWN, currBoard.height, currBoard.width)
+            game.hero.move(currBoard, MoveDir.DOWN)
         elif key == curses.KEY_UP:
-            game.hero.move(MoveDir.UP, currBoard.height, currBoard.width)
+            game.hero.move(currBoard, MoveDir.UP)
         elif key == curses.KEY_RIGHT:
-            game.hero.move(MoveDir.RIGHT, currBoard.height, currBoard.width)
+            game.hero.move(currBoard, MoveDir.RIGHT)
         elif key == curses.KEY_LEFT:
-            game.hero.move(MoveDir.LEFT, currBoard.height, currBoard.width)
-    
+            game.hero.move(currBoard, MoveDir.LEFT)
+
+
+#################################
+# Helpers
+#################################
 class Colors(IntEnum):
     HERO = 1
     TREE = 2

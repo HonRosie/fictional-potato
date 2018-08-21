@@ -345,14 +345,14 @@ def draw(stdscr, game):
         # Add asterik if item is selected
         if game.mode == "inventory":
             if idx == game.hero.inventorySelectIdx:
-                printItem = itemString + " * "
+                itemString += " * "
         # Make item green if is equipped
-        equippedPos = gameItems[itemString].pos
+        equippedPos = gameItems[item.subType].pos
         if equippedPos != None:
             for equippedItem in game.hero.equipMap[equippedPos]:
                 if equippedItem.id == item.id:
                     color = curses.color_pair(Colors.GRASS)
-        stdscr.addstr(inventoryYIdx, 0, printItem, color)
+        stdscr.addstr(inventoryYIdx, 0, itemString, color)
         inventoryYIdx += 1
     
     # Draw error messages

@@ -39,6 +39,7 @@ class Game:
         self.boardOriginY = None
         self.messages = []
         self.inventorySelectIdx = 0
+        self.removeSelectedInventoryItem = False
 
     def initGame(self):
         global debugStr
@@ -239,9 +240,14 @@ class Hero:
                 # Apply mods, if any
                 for mod in itemDefn.mods:
                     self.mods.add(mod)
-                del self.inventory[game.inventorySelectIdx]
-            # if self.inventorySelectIdx > 0:
-                # self.inventorySelectIdx -= 1
+                game.removeSelectedInventoryItem = True
+
+    def removeSelectedInventoryItem(self, game):
+        if game.removeSelectedInventoryItem == True:
+            del self.inventory[game.inventorySelectIdx]
+            if game.inventorySelectIdx > 0:
+                game.inventorySelectIdx -= 1
+        game.removeSelectedInventoryItem = False
                 
             
     # Equip hero with weapon or armour
@@ -441,6 +447,7 @@ def main(stdscr):
             hero.selectInventory(game, action)
             hero.eat(game, action)
             hero.equip(game, action)
+            hero.removeSelectedInventoryItem(game)
 
 
 #################################

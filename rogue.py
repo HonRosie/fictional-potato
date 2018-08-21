@@ -38,6 +38,7 @@ class Game:
         self.boardOriginX = None
         self.boardOriginY = None
         self.messages = []
+        self.inventorySelectIdx = 0
 
     def initGame(self):
         global debugStr
@@ -52,7 +53,7 @@ class Game:
         if action == Actions.TOGGLE:
             if self.mode == "play":
                 self.mode = "inventory"
-                self.hero.inventorySelectIdx = 0
+                self.inventorySelectIdx = 0
             else:
                 self.mode = "play"
 
@@ -110,22 +111,21 @@ class BoardItem:
         self.subType = subType
 
 class ItemDefinition:
-    def __init__(self, pos=None, dmg=0, defense=0, stealth=0, healing=0, mods=[]):
-        self.pos = pos
-        self.dmg = dmg
-        self.defense = defense
-        self.stealth = stealth
-        self.healing = healing
-        self.mods = mods
+    def __init__(self, equipPos=None, dmg=0, defense=0, stealth=0, healing=0, mods=[]):
+        self.equipPos = equipPos
+        self.dmg = dmg # Hero or monster health
+        self.defense = defense # Hero or monster defense
+        self.healing = healing # Hero health
+        self.mods = mods # Hero mods
 
-gameItems = {
-    "sword": ItemDefinition(dmg=6, pos="hands"),
-    "axe": ItemDefinition(dmg=8, pos="dualHands"),
-    "spadone": ItemDefinition(dmg=8, pos="dualHands"),
-    "bow": ItemDefinition(dmg=5, pos="hands"),
+gameItemDefns = {
+    "sword": ItemDefinition(dmg=6, equipPos="hands"),
+    "axe": ItemDefinition(dmg=8, equipPos="dualHands"),
+    "spadone": ItemDefinition(dmg=8, equipPos="dualHands"),
+    "bow": ItemDefinition(dmg=5, equipPos="hands"),
     "mushroom": ItemDefinition(mods=["stealth"]),
-    "boots": ItemDefinition(defense=1, pos="feet"),
-    "waterboots": ItemDefinition(pos="feet", mods=["waterwalking"]),
+    "boots": ItemDefinition(defense=1, equipPos="feet"),
+    "waterboots": ItemDefinition(equipPos="feet", mods=["waterwalking"]),
 }
 
 maxItemsPerPos = {
@@ -145,10 +145,10 @@ class Hero:
     def __init__(self):
         self.x = 0
         self.y = 0
-        self.mods = []
+        self.mods = set()
         self.health = 100
         self.inventory = [] # []BoardItems
-        self.inventorySelectIdx = -1
+        # self.inventorySelectIdx = -1
         self.equipMap = {
             "head": [],
             "body": [],
@@ -209,84 +209,92 @@ class Hero:
             self.inventory.append(boardItem)
             board.grid[self.y][self.x] = BoardItem("terrain", "grass")
 
-    def selectInventory(self, mode, action):
+    def selectInventory(self, game, action):
         global debugStr
-        if mode == "play":
+        if game.mode == "play":
             return
 
         # Move selection down/up
         if action == Actions.DOWN:
-            if self.inventorySelectIdx < len(self.inventory)-1:
-                self.inventorySelectIdx += 1
+            if game.inventorySelectIdx < len(self.inventory)-1:
+                game.inventorySelectIdx += 1
         if action == Actions.UP:
-            if self.inventorySelectIdx > 0:
-                self.inventorySelectIdx -= 1
+            if game.inventorySelectIdx > 0:
+                game.inventorySelectIdx -= 1
 
-    # Only applicable for edibles (includes potions)
-    def eat(self, mode, action):
+    # Only applicable for edibles
+    def eat(self, game, action):
         global debugStr
-        if mode == "play":
+        if game.mode == "play":
             return
         # eat
         if action == Actions.ENTER:
-            selectedItem = self.inventory[self.inventorySelectIdx] # BoardItem
+            selectedItem = self.inventory[game.inventorySelectIdx] # BoardItem
             if selectedItem.mainType == "edible":
-                # do something
-                debugStr += "equip edible"
+                itemDefn = gameItemDefns[selectedItem.subType]
+                # Apply dmg, if any
+                self.health -= itemDefn.dmg
+                # Apply healing, if any
+                self.health += itemDefn.healing
+                # Apply mods, if any
+                for mod in itemDefn.mods:
+                    self.mods.add(mod)
+                del self.inventory[game.inventorySelectIdx]
+            # if self.inventorySelectIdx > 0:
+                # self.inventorySelectIdx -= 1
+                
             
     # Equip hero with weapon or armour
-    def equip(self, mode, action, errorMsg):
+    def equip(self, game, action):
         global debugStr
-        if mode == "play":
+        if game.mode == "play":
             return
 
         if action == Actions.ENTER:
-            selectedItem = self.inventory[self.inventorySelectIdx] # BoardItem
-            if selectedItem.mainType == "edible":
-                return
+            selectedItem = self.inventory[game.inventorySelectIdx] # BoardItem
+            if selectedItem.mainType == "weapon" or selectedItem.mainType == "armour":
+                itemDefn = gameItemDefns[selectedItem.subType]
+                possibleEquipPos = itemDefn.equipPos
 
-            itemDefn = gameItems[selectedItem.subType]
-            possibleEquipPos = itemDefn.pos
+                # Dequip
+                # Loop through list of items at possible equip position.
+                for currItem in self.equipMap[possibleEquipPos]: # Also BoardItem
+                    # If item matches selected item, dequip
+                    if currItem == selectedItem:
+                        self.equipMap[possibleEquipPos].remove(currItem)
+                        for mod in itemDefn.mods:
+                            self.mods.remove(mod)
+                        debugStr += "dequip" + str(self.equipMap[possibleEquipPos])
+                        return
 
-            # Dequip
-            # Loop through list of items at possible equip position.
-            for currItem in self.equipMap[possibleEquipPos]: # Also BoardItem
-                # If item matches selected item, dequip
-                if currItem == selectedItem:
-                    self.equipMap[possibleEquipPos].remove(currItem)
-                    for mod in itemDefn.mods:
-                        self.mods.remove(mod)
-                    debugStr += "dequip" + str(self.equipMap[possibleEquipPos])
+                # Equip
+                # None of items at possible equip position match current selected item. Equip
+                numItemsAtEquipPos = len(self.equipMap[possibleEquipPos])
+                # EquipPos Count already maxed out
+                if numItemsAtEquipPos == maxItemsPerPos[possibleEquipPos]:
+                    errorStr = f"You can only have {maxItemsPerPos[possibleEquipPos]!r} items in {possibleEquipPos}"
+                    game.messages.append(errorStr)
+                    debugStr += "Cannot equip. Too many already: " + str(self.equipMap[possibleEquipPos])
                     return
-
-            # Equip
-            # None of items at possible equip position match current selected item. Equip
-            numItemsAtEquipPos = len(self.equipMap[possibleEquipPos])
-            # EquipPos Count already maxed out
-            if numItemsAtEquipPos == maxItemsPerPos[possibleEquipPos]:
-                errorStr = f"You can only have {maxItemsPerPos[possibleEquipPos]!r} items in {possibleEquipPos}"
-                errorMsg.append(errorStr)
-                debugStr += "Cannot equip. Too many already: " + str(self.equipMap[possibleEquipPos])
-                return
-            # Can't equip dualhanded weapon if already have a one handed weapon
-            elif possibleEquipPos == "dualHands" and len(self.equipMap["hands"]) > 0:
-                errorStr = f"This is a 2-handed item and you are already holding another item"
-                errorMsg.append(errorStr)
-                debugStr += "Cannot equp dualhands: " + str(self.equipMap[possibleEquipPos])
-                return
-            # Cannot equip any more hand weapons if already holding a dualhanded weapon
-            elif possibleEquipPos == "hands" and len(self.equipMap["dualHands"]) == 1:
-                errorStr = f"You don't have enough hands. Drop an item or make friends with an octopus!"
-                errorMsg.append(errorStr)
-                debugStr += "Cannot equp hands: " + str(self.equipMap[possibleEquipPos])
-                return
-            # Equip!
-            else:
-                self.equipMap[possibleEquipPos].append(selectedItem)
-                for mod in itemDefn.mods:
-                    self.mods.append(mod)
-                debugStr += "equip: " + str(self.equipMap[possibleEquipPos])
-                
+                # Can't equip dualhanded weapon if already have a one handed weapon
+                elif possibleEquipPos == "dualHands" and len(self.equipMap["hands"]) > 0:
+                    errorStr = f"This is a 2-handed item and you are already holding another item"
+                    game.messages.append(errorStr)
+                    debugStr += "Cannot equp dualhands: " + str(self.equipMap[possibleEquipPos])
+                    return
+                # Cannot equip any more hand weapons if already holding a dualhanded weapon
+                elif possibleEquipPos == "hands" and len(self.equipMap["dualHands"]) == 1:
+                    errorStr = f"You don't have enough hands. Drop an item or make friends with an octopus!"
+                    game.messages.append(errorStr)
+                    debugStr += "Cannot equp hands: " + str(self.equipMap[possibleEquipPos])
+                    return
+                # Equip!
+                else:
+                    self.equipMap[possibleEquipPos].append(selectedItem)
+                    for mod in itemDefn.mods:
+                        self.mods.add(mod)
+                    debugStr += "equip: " + str(self.equipMap[possibleEquipPos])
+                    
 
 
 
@@ -363,10 +371,10 @@ def draw(stdscr, game):
         itemString = item.subType
         # Add asterik if item is selected
         if game.mode == "inventory":
-            if idx == game.hero.inventorySelectIdx:
+            if idx == game.inventorySelectIdx:
                 itemString += " * "
         # Make item green if is equipped
-        equippedPos = gameItems[item.subType].pos
+        equippedPos = gameItemDefns[item.subType].equipPos
         if equippedPos != None:
             for equippedItem in game.hero.equipMap[equippedPos]:
                 if equippedItem.id == item.id:
@@ -430,9 +438,9 @@ def main(stdscr):
             hero.move(game.mode, currBoard, action)
             # Hero should pick up items regardless of what action is being taken
             hero.pickup(game.mode, currBoard)
-            hero.selectInventory(game.mode, action)
-            hero.eat(game.mode, action)
-            hero.equip(game.mode, action, game.messages)
+            hero.selectInventory(game, action)
+            hero.eat(game, action)
+            hero.equip(game, action)
 
 
 #################################

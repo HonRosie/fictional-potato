@@ -35,9 +35,9 @@ class Game:
         self.hero = Hero()
         self.boards = {}
         self.currBoardId = 0
-        self.boardOriginX = 70
-        self.boardOriginY = 20
-        self.errorMsg = []
+        self.boardOriginX = None
+        self.boardOriginY = None
+        self.messages = []
 
     def initGame(self):
         global debugStr
@@ -293,11 +293,28 @@ class Hero:
 #################################
 # Paint
 #################################
+def resize(stdscr, game):
+    global debugStr
+    maxY, maxX = stdscr.getmaxyx()
+    curses.resizeterm(maxY, maxX)
+    # debugStr += "  DEBUGSTR: " + str(maxX) + " " + str(maxY)
+
+    middleY = maxY/2
+    game.boardOriginY = int(middleY - game.boards[game.currBoardId].height/2)
+    middleX = maxX/2
+    game.boardOriginX = int(middleX - game.boards[game.currBoardId].width/2)
+
+    return maxY, maxX
+
+
 def draw(stdscr, game):
     global debugStr
     # TODO: What's practical difference between erase and clear?
     # Clears the current screen
     stdscr.erase()
+
+    # resize if necessary
+    maxY, maxX = resize(stdscr, game)
 
     # Draw board
     board = game.boards[game.currBoardId].grid
@@ -326,8 +343,8 @@ def draw(stdscr, game):
     stdscr.addstr(heroY, heroX, "h", curses.color_pair(Colors.HERO))
 
     # Draw hero stats
+    heroStatsX = maxX - 20
     heroStatsY = game.boardOriginY
-    heroStatsX = 175
     stdscr.addstr(heroStatsY, heroStatsX, "Hero Stats")
     heroStatsY += 1
     stdscr.addstr(heroStatsY, heroStatsX, "Health: " + str(game.hero.health))
@@ -336,8 +353,10 @@ def draw(stdscr, game):
         stdscr.addstr(heroStatsY, heroStatsX, mods)
 
     # Draw inventory
-    stdscr.addstr(game.boardOriginY, 0, "Inventory", curses.color_pair(Colors.INVENTORY))
-    inventoryYIdx = game.boardOriginY+1
+    inventoryX = 0
+    inventoryY = game.boardOriginY
+    stdscr.addstr(inventoryY, inventoryX, "Inventory", curses.color_pair(Colors.INVENTORY))
+    inventoryY += 1
     inventory = game.hero.inventory
     for idx, item in enumerate(inventory):
         color = curses.color_pair(Colors.ITEMS)
@@ -352,16 +371,15 @@ def draw(stdscr, game):
             for equippedItem in game.hero.equipMap[equippedPos]:
                 if equippedItem.id == item.id:
                     color = curses.color_pair(Colors.GRASS)
-        stdscr.addstr(inventoryYIdx, 0, itemString, color)
-        inventoryYIdx += 1
+        stdscr.addstr(inventoryY, 0, itemString, color)
+        inventoryY += 1
     
-    # Draw error messages
-    for msg in game.errorMsg:
-        stdscr.addstr(0, 15, msg)
-    game.errorMsg = []
+    # Draw any game messages
+    for msg in game.messages:
+        stdscr.addstr(0, game.boardOriginX, msg)
+    game.messages = []
 
     # Draw debug panel
-    global debugStr
     stdscr.addstr(45, 0, debugStr)
 
     # Paint 
@@ -414,7 +432,7 @@ def main(stdscr):
             hero.pickup(game.mode, currBoard)
             hero.selectInventory(game.mode, action)
             hero.eat(game.mode, action)
-            hero.equip(game.mode, action, game.errorMsg)
+            hero.equip(game.mode, action, game.messages)
 
 
 #################################

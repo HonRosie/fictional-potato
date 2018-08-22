@@ -160,10 +160,6 @@ class Hero:
     
     def move(self, mode, board, action):
         global debugStr
-        if mode == "inventory":
-            return
-        height = board.height
-        width = board.width
 
         newX, newY = self.x, self.y
         if action == Actions.UP:
@@ -176,7 +172,7 @@ class Hero:
             newX -= 1
         
         # Check bounds and if move into next cell?
-        if newX >= 0 and newX < width and newY >= 0 and newY < height:
+        if newX >= 0 and newX < board.width and newY >= 0 and newY < board.height:
             if not self.isBlocked(board, newX, newY):
                 self.x = newX
                 self.y = newY
@@ -201,8 +197,7 @@ class Hero:
 
     def pickup(self, mode, board):
         global debugStr
-        if mode == "inventory":
-            return
+
         # Check if there's an item at hero's x,y coordinates    
         boardItem = board.grid[self.y][self.x]
         # Pick up items
@@ -212,8 +207,6 @@ class Hero:
 
     def selectInventory(self, game, action):
         global debugStr
-        if game.mode == "play":
-            return
 
         # Move selection down/up
         if action == Actions.DOWN:
@@ -226,8 +219,7 @@ class Hero:
     # Only applicable for edibles
     def eat(self, game, action):
         global debugStr
-        if game.mode == "play":
-            return
+
         # eat
         if action == Actions.ENTER:
             selectedItem = self.inventory[game.inventorySelectIdx] # BoardItem
@@ -253,8 +245,6 @@ class Hero:
     # Equip hero with weapon or armour
     def equip(self, game, action):
         global debugStr
-        if game.mode == "play":
-            return
 
         if action == Actions.ENTER:
             selectedItem = self.inventory[game.inventorySelectIdx] # BoardItem
@@ -441,13 +431,16 @@ def main(stdscr):
         if key in actionMap:
             action = actionMap[key]
             game.toggle(action)
-            hero.move(game.mode, currBoard, action)
-            # Hero should pick up items regardless of what action is being taken
-            hero.pickup(game.mode, currBoard)
-            hero.selectInventory(game, action)
-            hero.eat(game, action)
-            hero.equip(game, action)
-            hero.removeSelectedInventoryItem(game)
+            if game.mode == "play":
+                hero.move(game.mode, currBoard, action)
+                # Hero should pick up items regardless of what action is being taken
+                hero.pickup(game.mode, currBoard)
+            if game.mode == "inventory":
+                hero.selectInventory(game, action)
+                hero.eat(game, action)
+                hero.equip(game, action)
+                hero.removeSelectedInventoryItem(game)
+            
 
 
 #################################

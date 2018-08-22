@@ -49,14 +49,21 @@ class Game:
         self.boards[board.id] = board
         self.hero = Hero()
     
-    def toggle(self, action):
+    def changeGameMode(self, action):
         global debugStr
         if action == Actions.TOGGLE:
             if self.mode == "play":
                 self.mode = "inventory"
                 self.inventorySelectIdx = 0
-            else:
+            elif self.mode == "inventory":
                 self.mode = "play"
+        if action == Actions.COOK:
+            if self.mode == "cook":
+                self.mode = "play"
+            else:
+                self.mode = "cook"
+
+            
 
 #################################
 # Board/Items
@@ -149,6 +156,8 @@ class Hero:
         self.mods = set()
         self.health = 100
         self.inventory = [] # []BoardItems
+        self.pot = []
+        self.whichItemList = "inventory"
         # self.inventorySelectIdx = -1
         self.equipMap = {
             "head": [],
@@ -215,6 +224,16 @@ class Hero:
         if action == Actions.UP:
             if game.inventorySelectIdx > 0:
                 game.inventorySelectIdx -= 1
+
+
+    def cook(self, game, action):
+        # Arrow through selected list
+        self.selectInventory(game, action)
+
+        # select item to add or remove
+        if action == Actions.ENTER:
+            self.pot.append(self.inventory[game.inventorySelectIdx])
+
 
     # Only applicable for edibles
     def eat(self, game, action):
@@ -290,6 +309,7 @@ class Hero:
                     for mod in itemDefn.mods:
                         self.mods.add(mod)
                     debugStr += "equip: " + str(self.equipMap[possibleEquipPos])
+
                     
 
 
@@ -310,6 +330,40 @@ def resize(stdscr, game):
 
     return maxY, maxX
 
+def drawCooking(stdscr, game):
+    inventoryX = game.boardOriginX
+    inventoryY = game.boardOriginY
+    stdscr.addstr(inventoryY, inventoryX, "Inventory", curses.color_pair(Colors.INVENTORY))
+    inventoryY += 1
+    inventory = game.hero.inventory
+    for idx, item in enumerate(inventory):
+        color = curses.color_pair(Colors.ITEMS)
+        itemString = item.subType
+        if item in game.hero.pot:
+            continue
+        # Add asterik if item is selected
+        if game.mode == "cook":
+            if idx == game.inventorySelectIdx:
+                itemString += " * "
+        stdscr.addstr(inventoryY, inventoryX, itemString, color)
+        inventoryY += 1
+
+    potX = game.boardOriginX + 30
+    potY = game.boardOriginY
+    stdscr.addstr(potY, potX, "Pot", curses.color_pair(Colors.INVENTORY))
+    potY += 1
+    for idx, item in enumerate(game.hero.pot):
+        color = curses.color_pair(Colors.ITEMS)
+        itemString = item.subType
+        stdscr.addstr(potY, potX, itemString, color)
+        potY += 1
+
+    # Draw debug panel
+    stdscr.addstr(45, 0, debugStr)
+
+    stdscr.refresh()
+
+
 
 def draw(stdscr, game):
     global debugStr
@@ -319,6 +373,11 @@ def draw(stdscr, game):
 
     # resize if necessary
     maxY, maxX = resize(stdscr, game)
+
+    # Draw cooking
+    if game.mode == "cook":
+        drawCooking(stdscr, game)
+        return
 
     # Draw board
     board = game.boards[game.currBoardId].grid
@@ -399,7 +458,8 @@ class Actions(Enum):
     RIGHT = 4
     TOGGLE = 5
     EQUIP = 6
-    ENTER = 7   
+    ENTER = 7
+    COOK = 8
     
 
 actionMap = {
@@ -409,6 +469,7 @@ actionMap = {
     curses.KEY_LEFT: Actions.LEFT,
     9: Actions.TOGGLE,
     10: Actions.ENTER,
+    ord("c"): Actions.COOK
 }
 
 def main(stdscr):
@@ -430,7 +491,7 @@ def main(stdscr):
             break
         if key in actionMap:
             action = actionMap[key]
-            game.toggle(action)
+            game.changeGameMode(action)
             if game.mode == "play":
                 hero.move(game.mode, currBoard, action)
                 # Hero should pick up items regardless of what action is being taken
@@ -440,6 +501,8 @@ def main(stdscr):
                 hero.eat(game, action)
                 hero.equip(game, action)
                 hero.removeSelectedInventoryItem(game)
+            if game.mode == "cook":
+                hero.cook(game, action)
             
 
 

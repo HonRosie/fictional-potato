@@ -38,7 +38,7 @@ class Game:
         self.boardOriginX = None
         self.boardOriginY = None
         self.messages = []
-        # self.inventorySelectIdx = 0
+        # self.selectedItemIdx = 0
         # self.removeSelectedInventoryItem = False
 
     def initGame(self):
@@ -51,14 +51,16 @@ class Game:
     
     def changeGameMode(self, action):
         global debugStr
-        if action == Actions.TOGGLE:
+        if action == Actions.TOGGLE and self.mode != "cook":
+            self.hero.selectedItemIdx = 0
             if self.mode == "play":
                 self.mode = "inventory"
-                self.inventorySelectIdx = 0
             elif self.mode == "inventory":
                 self.mode = "play"
         if action == Actions.COOK:
+            self.hero.selectedItemIdx = 0
             if self.mode == "cook":
+                self.hero.addUncookedItemsBack()
                 self.mode = "play"
             else:
                 self.mode = "cook"
@@ -158,7 +160,7 @@ class Hero:
         self.inventory = [] # []BoardItems
         self.pot = []
         self.whichItemList = "inventory"
-        self.inventorySelectIdx = 0
+        self.selectedItemIdx = 0
         self.shouldRemoveSelectedItem = False
         self.equipMap = {
             "head": [],
@@ -215,25 +217,40 @@ class Hero:
             self.inventory.append(boardItem)
             board.grid[self.y][self.x] = BoardItem("terrain", "grass")
 
-    def selectInventory(self, game, action):
+    def selectItem(self, itemList, action):
         global debugStr
 
         # Move selection down/up
         if action == Actions.DOWN:
-            if self.inventorySelectIdx < len(self.inventory)-1:
-                self.inventorySelectIdx += 1
+            if self.selectedItemIdx < len(itemList)-1:
+                self.selectedItemIdx += 1
+                debugStr += " " + str(self.selectedItemIdx)
         if action == Actions.UP:
-            if self.inventorySelectIdx > 0:
-                self.inventorySelectIdx -= 1
+            if self.selectedItemIdx > 0:
+                self.selectedItemIdx -= 1
+
+    def removeSelectedInventoryItem(self, itemList):
+        if self.shouldRemoveSelectedItem == True:
+            del itemList[self.selectedItemIdx]
+            if self.selectedItemIdx > 0:
+                self.selectedItemIdx -= 1
+        self.shouldRemoveSelectedItem = False
 
 
-    def cook(self, game, action):
+    def cook(self, action):
         # Arrow through selected list
-        self.selectInventory(game, action)
+        self.selectItem(self.inventory, action)
 
         # select item to add or remove
         if action == Actions.ENTER:
-            self.pot.append(self.inventory[self.inventorySelectIdx])
+            self.pot.append(self.inventory[self.selectedItemIdx])
+            self.shouldRemoveSelectedItem = True
+            self.removeSelectedInventoryItem(self.inventory)
+    
+    def addUncookedItemsBack(self):
+        for item in self.pot:
+            self.inventory.append(item)
+        self.pot = []
 
 
     # Only applicable for edibles
@@ -242,7 +259,7 @@ class Hero:
 
         # eat
         if action == Actions.ENTER:
-            selectedItem = self.inventory[self.inventorySelectIdx] # BoardItem
+            selectedItem = self.inventory[self.selectedItemIdx] # BoardItem
             if selectedItem.mainType == "edible":
                 itemDefn = gameItemDefns[selectedItem.subType]
                 # Apply dmg, if any
@@ -253,13 +270,6 @@ class Hero:
                 for mod in itemDefn.mods:
                     self.mods.add(mod)
                 self.shouldRemoveSelectedItem = True
-
-    def removeSelectedInventoryItem(self, game):
-        if self.shouldRemoveSelectedItem == True:
-            del self.inventory[self.inventorySelectIdx]
-            if self.inventorySelectIdx > 0:
-                self.inventorySelectIdx -= 1
-        self.shouldRemoveSelectedItem = False
                 
             
     # Equip hero with weapon or armour
@@ -267,7 +277,7 @@ class Hero:
         global debugStr
 
         if action == Actions.ENTER:
-            selectedItem = self.inventory[self.inventorySelectIdx] # BoardItem
+            selectedItem = self.inventory[self.selectedItemIdx] # BoardItem
             if selectedItem.mainType == "weapon" or selectedItem.mainType == "armour":
                 itemDefn = gameItemDefns[selectedItem.subType]
                 possibleEquipPos = itemDefn.equipPos
@@ -340,12 +350,9 @@ def drawCooking(stdscr, game):
     for idx, item in enumerate(inventory):
         color = curses.color_pair(Colors.ITEMS)
         itemString = item.subType
-        if item in game.hero.pot:
-            continue
         # Add asterik if item is selected
-        if game.mode == "cook":
-            if idx == game.hero.inventorySelectIdx:
-                itemString += " * "
+        if idx == game.hero.selectedItemIdx:
+            itemString += " * "
         stdscr.addstr(inventoryY, inventoryX, itemString, color)
         inventoryY += 1
 
@@ -427,7 +434,7 @@ def draw(stdscr, game):
         itemString = item.subType
         # Add asterik if item is selected
         if game.mode == "inventory":
-            if idx == game.hero.inventorySelectIdx:
+            if idx == game.hero.selectedItemIdx:
                 itemString += " * "
         # Make item green if is equipped
         equippedPos = gameItemDefns[item.subType].equipPos
@@ -498,12 +505,12 @@ def main(stdscr):
                 # Hero should pick up items regardless of what action is being taken
                 hero.pickup(game.mode, currBoard)
             if game.mode == "inventory":
-                hero.selectInventory(game, action)
+                hero.selectItem(game.hero.inventory, action)
                 hero.eat(game, action)
                 hero.equip(game, action)
-                hero.removeSelectedInventoryItem(game)
+                hero.removeSelectedInventoryItem(game.hero.inventory)
             if game.mode == "cook":
-                hero.cook(game, action)
+                hero.cook(action)
             
 
 

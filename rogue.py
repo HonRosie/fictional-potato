@@ -224,7 +224,6 @@ class Hero:
         if action == Actions.DOWN:
             if self.selectedItemIdx < len(itemList)-1:
                 self.selectedItemIdx += 1
-                debugStr += " " + str(self.selectedItemIdx)
         if action == Actions.UP:
             if self.selectedItemIdx > 0:
                 self.selectedItemIdx -= 1
@@ -258,7 +257,7 @@ class Hero:
         # Arrow through selected list
         if self.cookState == "pot":
             self.selectItem(self.pot, action)
-        else:
+        elif self.cookState == "inventory":
             self.selectItem(self.inventory, action)
 
         # Either add or remove item from pot
@@ -363,7 +362,6 @@ def resize(stdscr, game):
     global debugStr
     maxY, maxX = stdscr.getmaxyx()
     curses.resizeterm(maxY, maxX)
-    # debugStr += "  DEBUGSTR: " + str(maxX) + " " + str(maxY)
 
     middleY = maxY/2
     game.boardOriginY = int(middleY - game.boards[game.currBoardId].height/2)
@@ -372,20 +370,64 @@ def resize(stdscr, game):
 
     return maxY, maxX
 
-def drawCooking(stdscr, game):
-    inventoryX = game.boardOriginX
-    inventoryY = game.boardOriginY
-    stdscr.addstr(inventoryY, inventoryX, "Inventory", curses.color_pair(Colors.INVENTORY))
-    inventoryY += 1
+def drawInventory(stdscr, game, posX, posY):
+    global debugStr
+    stdscr.addstr(posY, posX, "Inventory", curses.color_pair(Colors.INVENTORY))
+    posY += 1
     inventory = game.hero.inventory
     for idx, item in enumerate(inventory):
         color = curses.color_pair(Colors.ITEMS)
         itemString = item.subType
         # Add asterik if item is selected
-        if idx == game.hero.selectedItemIdx and game.hero.cookState == "inventory":
+        if idx == game.hero.selectedItemIdx and (game.hero.cookState != "pot" and game.hero.cookState != "cook"):
             itemString += " * "
-        stdscr.addstr(inventoryY, inventoryX, itemString, color)
-        inventoryY += 1
+        # Make item green if is equipped
+        equippedPos = gameItemDefns[item.subType].equipPos
+        if equippedPos != None:
+            for equippedItem in game.hero.equipMap[equippedPos]:
+                if equippedItem.id == item.id:
+                    color = curses.color_pair(Colors.GRASS)
+        stdscr.addstr(posY, posX, itemString, color)
+        posY += 1
+
+def drawBoard(stdscr, game, boardX, boardY):
+    board = game.boards[game.currBoardId].grid
+    for j, row in enumerate(board):
+        for i, cell in enumerate(row):
+            x = boardX + i
+            y = boardY + j
+            if cell.subType == "water":
+                stdscr.addstr(y, x, "*", curses.color_pair(Colors.WATER))
+            elif cell.subType == "wall":
+                stdscr.addstr(y, x, "-", curses.color_pair(Colors.WALL))
+            elif cell.subType == "sword":
+                stdscr.addstr(y, x, "s", curses.color_pair(Colors.ITEMS))
+            elif cell.subType == "axe":
+                stdscr.addstr(y, x, "a", curses.color_pair(Colors.ITEMS))
+            elif cell.subType == "bow":
+                stdscr.addstr(y, x, "b", curses.color_pair(Colors.ITEMS))
+            elif cell.subType == "mushroom":
+                stdscr.addstr(y, x, "m", curses.color_pair(Colors.ITEMS))
+            else:
+                stdscr.addstr(y, x, "x", curses.color_pair(Colors.GRASS))
+
+def drawHero(stdscr, game, heroX, heroY):
+    stdscr.addstr(heroY, heroX, "h", curses.color_pair(Colors.HERO))
+
+def drawHeroStats(stdscr, game, heroStatsX, heroStatsY, maxY, maxX):
+    heroStatsX = maxX - 20
+    heroStatsY = game.boardOriginY
+    stdscr.addstr(heroStatsY, heroStatsX, "Hero Stats")
+    heroStatsY += 1
+    stdscr.addstr(heroStatsY, heroStatsX, "Health: " + str(game.hero.health))
+    for mods in game.hero.mods:
+        heroStatsY += 1
+        stdscr.addstr(heroStatsY, heroStatsX, mods)
+
+def drawCookMode(stdscr, game):
+    inventoryX = game.boardOriginX
+    inventoryY = game.boardOriginY
+    drawInventory(stdscr, game, inventoryX, inventoryY)
 
     potX = game.boardOriginX + 30
     potY = game.boardOriginY
@@ -405,12 +447,26 @@ def drawCooking(stdscr, game):
         cookString += " * "
     stdscr.addstr(game.boardOriginY, potX + 30, cookString, curses.color_pair(Colors.INVENTORY))
 
-    # Draw debug panel
-    stdscr.addstr(45, 0, debugStr)
 
-    stdscr.refresh()
+def drawPlayMode(stdscr, game, maxY, maxX):
+    boardX = game.boardOriginX
+    boardY = game.boardOriginY
+    drawBoard(stdscr, game, boardX, boardY)
 
+    # Draw hero
+    heroX = game.hero.x + game.boardOriginX
+    heroY = game.hero.y + game.boardOriginY
+    drawHero(stdscr, game, heroX, heroY)
 
+    # Draw hero stats
+    heroStatsX = maxX - 20
+    heroStatsY = game.boardOriginY
+    drawHeroStats(stdscr, game, heroStatsX, heroStatsY, maxY, maxX)
+
+    # Draw inventory
+    inventoryX = 0
+    inventoryY = game.boardOriginY
+    drawInventory(stdscr, game, inventoryX, inventoryY)
 
 def draw(stdscr, game):
     global debugStr
@@ -421,74 +477,17 @@ def draw(stdscr, game):
     # resize if necessary
     maxY, maxX = resize(stdscr, game)
 
-    # Draw cooking
-    if game.mode == "cook":
-        drawCooking(stdscr, game)
-        return
-
-    # Draw board
-    board = game.boards[game.currBoardId].grid
-    for j, row in enumerate(board):
-        for i, cell in enumerate(row):
-            x = game.boardOriginX + i
-            y = game.boardOriginY + j
-            if cell.subType == "water":
-                stdscr.addstr(y, x, "*", curses.color_pair(Colors.WATER))
-            elif cell.subType == "wall":
-                stdscr.addstr(y, x, "-", curses.color_pair(Colors.WALL))
-            elif cell.subType == "sword":
-                stdscr.addstr(y, x, "s", curses.color_pair(Colors.ITEMS))
-            elif cell.subType == "axe":
-                stdscr.addstr(y, x, "a", curses.color_pair(Colors.ITEMS))
-            elif cell.subType == "bow":
-                stdscr.addstr(y, x, "b", curses.color_pair(Colors.ITEMS))
-            elif cell.subType == "mushroom":
-                stdscr.addstr(y, x, "m", curses.color_pair(Colors.ITEMS))
-            else:
-                stdscr.addstr(y, x, "x", curses.color_pair(Colors.GRASS))
-
-    # Draw hero
-    heroX = game.hero.x + game.boardOriginX
-    heroY = game.hero.y + game.boardOriginY
-    stdscr.addstr(heroY, heroX, "h", curses.color_pair(Colors.HERO))
-
-    # Draw hero stats
-    heroStatsX = maxX - 20
-    heroStatsY = game.boardOriginY
-    stdscr.addstr(heroStatsY, heroStatsX, "Hero Stats")
-    heroStatsY += 1
-    stdscr.addstr(heroStatsY, heroStatsX, "Health: " + str(game.hero.health))
-    for mods in game.hero.mods:
-        heroStatsY += 1
-        stdscr.addstr(heroStatsY, heroStatsX, mods)
-
-    # Draw inventory
-    inventoryX = 0
-    inventoryY = game.boardOriginY
-    stdscr.addstr(inventoryY, inventoryX, "Inventory", curses.color_pair(Colors.INVENTORY))
-    inventoryY += 1
-    inventory = game.hero.inventory
-    for idx, item in enumerate(inventory):
-        color = curses.color_pair(Colors.ITEMS)
-        itemString = item.subType
-        # Add asterik if item is selected
-        if game.mode == "inventory":
-            if idx == game.hero.selectedItemIdx:
-                itemString += " * "
-        # Make item green if is equipped
-        equippedPos = gameItemDefns[item.subType].equipPos
-        if equippedPos != None:
-            for equippedItem in game.hero.equipMap[equippedPos]:
-                if equippedItem.id == item.id:
-                    color = curses.color_pair(Colors.GRASS)
-        stdscr.addstr(inventoryY, 0, itemString, color)
-        inventoryY += 1
-    
     # Draw any game messages
     for msg in game.messages:
         stdscr.addstr(0, game.boardOriginX, msg)
     game.messages = []
 
+    # Draw game mode specific things
+    if game.mode == "cook":
+        drawCookMode(stdscr, game)
+    elif game.mode == "play" or game.mode == "inventory":
+        drawPlayMode(stdscr, game, maxY, maxX)
+    
     # Draw debug panel
     stdscr.addstr(45, 0, debugStr)
 

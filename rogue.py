@@ -159,7 +159,7 @@ class Hero:
         self.health = 100
         self.inventory = [] # []BoardItems
         self.pot = []
-        self.whichItemList = "inventory"
+        self.cookState = "inventory"
         self.selectedItemIdx = 0
         self.shouldRemoveSelectedItem = False
         self.equipMap = {
@@ -238,14 +238,45 @@ class Hero:
 
 
     def cook(self, action):
-        # Arrow through selected list
-        self.selectItem(self.inventory, action)
+        global debugStr
+        # Pick which list to arrow through
+        if action == Actions.LEFT:
+            if self.cookState == "cook":
+                self.selectedItemIdx = 0
+                self.cookState = "pot"
+            elif self.cookState == "pot":
+                self.selectedItemIdx = 0
+                self.cookState = "inventory"
+        elif action == Actions.RIGHT:
+            if self.cookState == "inventory":
+                self.selectedItemIdx = 0
+                self.cookState = "pot"
+            elif self.cookState == "pot":
+                self.selectedItemIdx = 0
+                self.cookState = "cook"
 
-        # select item to add or remove
+        # Arrow through selected list
+        if self.cookState == "pot":
+            self.selectItem(self.pot, action)
+        else:
+            self.selectItem(self.inventory, action)
+
+        # Either add or remove item from pot
         if action == Actions.ENTER:
-            self.pot.append(self.inventory[self.selectedItemIdx])
-            self.shouldRemoveSelectedItem = True
-            self.removeSelectedInventoryItem(self.inventory)
+            if self.cookState == "inventory":
+                self.pot.append(self.inventory[self.selectedItemIdx])
+                self.shouldRemoveSelectedItem = True
+                self.removeSelectedInventoryItem(self.inventory)
+            elif self.cookState == "pot":
+                self.inventory.append(self.pot[self.selectedItemIdx])
+                self.shouldRemoveSelectedItem = True
+                self.removeSelectedInventoryItem(self.pot)
+            elif self.cookState == "cook":
+                # self.inventory.append(BoardItem("potion", "potion"))
+                # self.pot = []
+                # do something
+                debugStr += " Create new item to add to inventory"
+                
     
     def addUncookedItemsBack(self):
         for item in self.pot:
@@ -351,7 +382,7 @@ def drawCooking(stdscr, game):
         color = curses.color_pair(Colors.ITEMS)
         itemString = item.subType
         # Add asterik if item is selected
-        if idx == game.hero.selectedItemIdx:
+        if idx == game.hero.selectedItemIdx and game.hero.cookState == "inventory":
             itemString += " * "
         stdscr.addstr(inventoryY, inventoryX, itemString, color)
         inventoryY += 1
@@ -363,8 +394,16 @@ def drawCooking(stdscr, game):
     for idx, item in enumerate(game.hero.pot):
         color = curses.color_pair(Colors.ITEMS)
         itemString = item.subType
+        if idx == game.hero.selectedItemIdx and game.hero.cookState == "pot":
+            itemString += " * "
         stdscr.addstr(potY, potX, itemString, color)
         potY += 1
+
+    # Cook
+    cookString = "Cook?"
+    if game.hero.cookState == "cook":
+        cookString += " * "
+    stdscr.addstr(game.boardOriginY, potX + 30, cookString, curses.color_pair(Colors.INVENTORY))
 
     # Draw debug panel
     stdscr.addstr(45, 0, debugStr)

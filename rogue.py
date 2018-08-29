@@ -39,7 +39,6 @@ class Game:
         self.boardOriginY = None
         self.messages = []
         # self.selectedItemIdx = 0
-        # self.removeSelectedInventoryItem = False
 
     def initGame(self):
         global debugStr
@@ -157,11 +156,6 @@ class Hero:
         self.y = 0
         self.mods = set()
         self.health = 100
-        self.inventory = [] # []BoardItems
-        self.pot = []
-        self.cookState = "inventory"
-        self.selectedItemIdx = 0
-        self.shouldRemoveSelectedItem = False
         self.equipMap = {
             "head": [],
             "body": [],
@@ -169,6 +163,11 @@ class Hero:
             "hands": [],
             "feet": [],
         } # map[pos]boardItem
+        self.inventory = [] # []BoardItems
+        self.pot = []
+        self.cookState = "inventory"
+        self.selectedItemIdx = 0
+        self.shouldRemoveSelectedItem = False
     
     def move(self, mode, board, action):
         global debugStr
@@ -209,7 +208,6 @@ class Hero:
 
     def pickup(self, mode, board):
         global debugStr
-
         # Check if there's an item at hero's x,y coordinates    
         boardItem = board.grid[self.y][self.x]
         # Pick up items
@@ -219,7 +217,6 @@ class Hero:
 
     def selectItem(self, itemList, action):
         global debugStr
-
         # Move selection down/up
         if action == Actions.DOWN:
             if self.selectedItemIdx < len(itemList)-1:
@@ -228,7 +225,7 @@ class Hero:
             if self.selectedItemIdx > 0:
                 self.selectedItemIdx -= 1
 
-    def removeSelectedInventoryItem(self, itemList):
+    def removeSelectedItem(self, itemList):
         if self.shouldRemoveSelectedItem == True:
             del itemList[self.selectedItemIdx]
             if self.selectedItemIdx > 0:
@@ -241,13 +238,16 @@ class Hero:
         # Pick which list to arrow through
         if action == Actions.LEFT:
             if self.cookState == "cook":
-                self.selectedItemIdx = 0
-                self.cookState = "pot"
+                if len(self.pot) != 0:
+                    self.selectedItemIdx = 0
+                    self.cookState = "pot"
+                else:
+                    self.cookState = "inventory"
             elif self.cookState == "pot":
                 self.selectedItemIdx = 0
                 self.cookState = "inventory"
         elif action == Actions.RIGHT:
-            if self.cookState == "inventory":
+            if self.cookState == "inventory" and len(self.pot) != 0:
                 self.selectedItemIdx = 0
                 self.cookState = "pot"
             elif self.cookState == "pot":
@@ -265,12 +265,13 @@ class Hero:
             if self.cookState == "inventory":
                 self.pot.append(self.inventory[self.selectedItemIdx])
                 self.shouldRemoveSelectedItem = True
-                self.removeSelectedInventoryItem(self.inventory)
+                self.removeSelectedItem(self.inventory)
             elif self.cookState == "pot":
                 self.inventory.append(self.pot[self.selectedItemIdx])
                 self.shouldRemoveSelectedItem = True
-                self.removeSelectedInventoryItem(self.pot)
+                self.removeSelectedItem(self.pot)
             elif self.cookState == "cook":
+                        
                 # self.inventory.append(BoardItem("potion", "potion"))
                 # self.pot = []
                 # do something
@@ -286,7 +287,6 @@ class Hero:
     # Only applicable for edibles
     def eat(self, game, action):
         global debugStr
-
         # eat
         if action == Actions.ENTER:
             selectedItem = self.inventory[self.selectedItemIdx] # BoardItem
@@ -390,6 +390,17 @@ def drawInventory(stdscr, game, posX, posY):
         stdscr.addstr(posY, posX, itemString, color)
         posY += 1
 
+def drawPot(stdscr, game, potX, potY):
+    stdscr.addstr(potY, potX, "Pot", curses.color_pair(Colors.INVENTORY))
+    potY += 1
+    for idx, item in enumerate(game.hero.pot):
+        color = curses.color_pair(Colors.ITEMS)
+        itemString = item.subType
+        if idx == game.hero.selectedItemIdx and game.hero.cookState == "pot":
+            itemString += " * "
+        stdscr.addstr(potY, potX, itemString, color)
+        potY += 1
+
 def drawBoard(stdscr, game, boardX, boardY):
     board = game.boards[game.currBoardId].grid
     for j, row in enumerate(board):
@@ -431,15 +442,7 @@ def drawCookMode(stdscr, game):
 
     potX = game.boardOriginX + 30
     potY = game.boardOriginY
-    stdscr.addstr(potY, potX, "Pot", curses.color_pair(Colors.INVENTORY))
-    potY += 1
-    for idx, item in enumerate(game.hero.pot):
-        color = curses.color_pair(Colors.ITEMS)
-        itemString = item.subType
-        if idx == game.hero.selectedItemIdx and game.hero.cookState == "pot":
-            itemString += " * "
-        stdscr.addstr(potY, potX, itemString, color)
-        potY += 1
+    drawPot(stdscr, game, potX, potY)
 
     # Cook
     cookString = "Cook?"
@@ -546,7 +549,7 @@ def main(stdscr):
                 hero.selectItem(game.hero.inventory, action)
                 hero.eat(game, action)
                 hero.equip(game, action)
-                hero.removeSelectedInventoryItem(game.hero.inventory)
+                hero.removeSelectedItem(game.hero.inventory)
             if game.mode == "cook":
                 hero.cook(action)
             

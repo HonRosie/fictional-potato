@@ -305,20 +305,20 @@ class Hero:
         global debugStr
         # Pick which list to arrow through
         if action == Actions.LEFT:
-            self.selectedItemIdx = 0
+            newHero.selectedItemIdx = 0
             if self.cookState == "cook":
                 if len(self.pot) != 0:
-                    self.cookState = "pot"
+                    newHero.cookState = "pot"
                 else:
-                    self.cookState = "inventory"
+                    newHero.cookState = "inventory"
             elif self.cookState == "pot":
-                self.cookState = "inventory"
+                newHero.cookState = "inventory"
         elif action == Actions.RIGHT:
-            self.selectedItemIdx = 0
+            newHero.selectedItemIdx = 0
             if self.cookState == "inventory" and len(self.pot) != 0:
-                self.cookState = "pot"
+                newHero.cookState = "pot"
             elif self.cookState == "pot":
-                self.cookState = "cook"
+                newHero.cookState = "cook"
 
         # Arrow through selected list
         if self.cookState == "pot":
@@ -329,13 +329,11 @@ class Hero:
         # Either add or remove item from pot
         if action == Actions.ENTER:
             if self.cookState == "inventory":
-                self.pot.append(self.inventory[self.selectedItemIdx])
-                self.shouldRemoveSelectedItem = True
-                self.removeSelectedItem(self.inventory)
+                newHero.pot.append(self.inventory[self.selectedItemIdx])
+                self.removeSelectedItem(newHero.inventory, newHero)
             elif self.cookState == "pot":
-                self.inventory.append(self.pot[self.selectedItemIdx])
-                self.shouldRemoveSelectedItem = True
-                self.removeSelectedItem(self.pot)
+                newHero.inventory.append(self.pot[self.selectedItemIdx])
+                self.removeSelectedItem(newHero.pot, newHero)
             elif self.cookState == "cook":
                         
                 # self.inventory.append(BoardItem("potion", "potion"))

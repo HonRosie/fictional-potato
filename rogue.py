@@ -172,14 +172,15 @@ class Hero:
         self.cookState = "inventory"
         self.selectedItemIdx = 0
         self.shouldRemoveSelectedItem = False
-        self.newHeroState = {
-            newPosX = 0,
-            newPosY = 0,
-            shouldUpdatePos = False,
-
-        }
+        # self.newHeroState = {
+        #     newPosX = 0,
+        #     newPosY = 0,
+        #     shouldUpdatePos = False,
+        #     itemsToRemove = [],
+        #     itemsToAdd = [],
+        # }
     
-    def move(self, mode, board, action):
+    def move(self, board, action):
         global debugStr
 
         newX, newY = self.x, self.y
@@ -216,7 +217,7 @@ class Hero:
         # Default to not blocked
         return False
 
-    def pickup(self, mode, board):
+    def pickup(self, board):
         global debugStr
         # Check if there's an item at hero's x,y coordinates    
         boardItem = board.grid[self.y][self.x]
@@ -273,21 +274,19 @@ class Hero:
         global debugStr
         # Pick which list to arrow through
         if action == Actions.LEFT:
+            self.selectedItemIdx = 0
             if self.cookState == "cook":
                 if len(self.pot) != 0:
-                    self.selectedItemIdx = 0
                     self.cookState = "pot"
                 else:
                     self.cookState = "inventory"
             elif self.cookState == "pot":
-                self.selectedItemIdx = 0
                 self.cookState = "inventory"
         elif action == Actions.RIGHT:
+            self.selectedItemIdx = 0
             if self.cookState == "inventory" and len(self.pot) != 0:
-                self.selectedItemIdx = 0
                 self.cookState = "pot"
             elif self.cookState == "pot":
-                self.selectedItemIdx = 0
                 self.cookState = "cook"
 
         # Arrow through selected list
@@ -582,9 +581,9 @@ def main(stdscr):
             action = actionMap[key]
             game.changeGameMode(action)
             if game.mode == "play":
-                hero.move(game.mode, currBoard, action)
+                hero.move(currBoard, action)
                 # Hero should pick up items regardless of what action is being taken
-                hero.pickup(game.mode, currBoard)
+                hero.pickup(currBoard)
                 hero.combat(currBoard, action)
             if game.mode == "inventory":
                 hero.selectItem(game.hero.inventory, action)
@@ -593,7 +592,8 @@ def main(stdscr):
                 hero.removeSelectedItem(game.hero.inventory)
             if game.mode == "cook":
                 hero.cook(action)
-            
+
+
 
 
 #################################

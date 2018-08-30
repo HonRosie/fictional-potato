@@ -29,9 +29,14 @@ debugStr = ""
 #################################
 # Game
 #################################
+class Modes(Enum):
+    PLAY = 1
+    INVENTORY = 2
+    COOK = 3
+
 class Game:
     def __init__(self):
-        self.mode = "play"
+        self.mode = Modes.PLAY
         self.hero = Hero()
         self.boards = {}
         self.currBoardId = 0
@@ -48,21 +53,54 @@ class Game:
         self.boards[board.id] = board
         self.hero = Hero()
     
-    def changeGameMode(self, action):
+    # def changeGameMode(self, action):
+    #     global debugStr
+    #     if action == Actions.TOGGLE and self.mode != "cook":
+    #         self.hero.selectedItemIdx = 0
+    #         if self.mode == "play":
+    #             self.mode = "inventory"
+    #         elif self.mode == "inventory":
+    #             self.mode = "play"
+    #     if action == Actions.COOK:
+    #         self.hero.selectedItemIdx = 0
+    #         if self.mode == "cook":
+    #             self.hero.addUncookedItemsBack()
+    #             self.mode = "play"
+    #         else:
+    #             self.mode = "cook"
+
+    def changeModeFromPlay(self, action):
         global debugStr
-        if action == Actions.TOGGLE and self.mode != "cook":
+        if action == Actions.TOGGLE:
             self.hero.selectedItemIdx = 0
-            if self.mode == "play":
-                self.mode = "inventory"
-            elif self.mode == "inventory":
-                self.mode = "play"
+            self.mode = Modes.INVENTORY
+            return True
         if action == Actions.COOK:
             self.hero.selectedItemIdx = 0
-            if self.mode == "cook":
-                self.hero.addUncookedItemsBack()
-                self.mode = "play"
-            else:
-                self.mode = "cook"
+            self.mode = Modes.COOK
+            return True
+        return False
+
+    def changeModeFromInventory(self, action):
+        global debugStr
+        if action == Actions.TOGGLE:
+            self.hero.selectedItemIdx = 0
+            self.mode = Modes.PLAY
+            return True
+        if action == Actions.COOK:
+            self.hero.selectedItemIdx = 0
+            self.mode = Modes.COOK
+            return True
+        return False
+
+    def changeModeFromCook(self, action):
+        global debugStr
+        if action == Actions.COOK:
+            self.mode = Modes.PLAY
+            return True
+        return False
+
+
 
             
 
@@ -172,13 +210,7 @@ class Hero:
         self.cookState = "inventory"
         self.selectedItemIdx = 0
         self.shouldRemoveSelectedItem = False
-        # self.newHeroState = {
-        #     newPosX = 0,
-        #     newPosY = 0,
-        #     shouldUpdatePos = False,
-        #     itemsToRemove = [],
-        #     itemsToAdd = [],
-        # }
+
     
     def move(self, board, action):
         global debugStr
@@ -525,9 +557,9 @@ def draw(stdscr, game):
     game.messages = []
 
     # Draw game mode specific things
-    if game.mode == "cook":
+    if game.mode == Modes.COOK:
         drawCookMode(stdscr, game)
-    elif game.mode == "play" or game.mode == "inventory":
+    elif game.mode == Modes.PLAY or game.mode == Modes.INVENTORY:
         drawPlayMode(stdscr, game, maxY, maxX)
     
     # Draw debug panel
@@ -548,16 +580,18 @@ class Actions(Enum):
     EQUIP = 6
     ENTER = 7
     COOK = 8
+    QUIT = 9
     
 
-actionMap = {
+ActionMap = {
     curses.KEY_DOWN: Actions.DOWN,
     curses.KEY_UP: Actions.UP,
     curses.KEY_RIGHT: Actions.RIGHT,
     curses.KEY_LEFT: Actions.LEFT,
     9: Actions.TOGGLE,
     10: Actions.ENTER,
-    ord("c"): Actions.COOK
+    ord("c"): Actions.COOK,
+    ord("q"): Actions.QUIT
 }
 
 def main(stdscr):
@@ -575,22 +609,30 @@ def main(stdscr):
     while True:
         draw(stdscr, game)
         key = stdscr.getch()
-        if key == ord("q"):
-            break
-        if key in actionMap:
-            action = actionMap[key]
-            game.changeGameMode(action)
-            if game.mode == "play":
+        if key in ActionMap:
+            action = ActionMap[key]
+            if action == Actions.QUIT:
+                break
+            if game.mode == Modes.PLAY:
+                isChanged = game.changeModeFromPlay(action)
+                if isChanged:
+                    continue
                 hero.move(currBoard, action)
                 # Hero should pick up items regardless of what action is being taken
                 hero.pickup(currBoard)
                 hero.combat(currBoard, action)
-            if game.mode == "inventory":
+            if game.mode == Modes.INVENTORY:
+                isChanged = game.changeModeFromInventory(action)
+                if isChanged:
+                    continue
                 hero.selectItem(game.hero.inventory, action)
                 hero.eat(game, action)
                 hero.equip(game, action)
                 hero.removeSelectedItem(game.hero.inventory)
-            if game.mode == "cook":
+            if game.mode == Modes.COOK:
+                isChanged = game.changeModeFromCook(action)
+                if isChanged:
+                    continue
                 hero.cook(action)
 
 

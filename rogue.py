@@ -8,10 +8,10 @@ xsxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xaxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xbxxxxxxxx-----xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxsxxxxxxxxx
-xxxxxxxxxxxxx*****xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+xxxxxxuxxxxxx*****xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxx***xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxx***xxxxxxxxxxxxxxxxxxxsxxxxxxxxx
-xxxxxxxxxxxxxxxxxxx***xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+xxxxxxxxxxxxxxxxxxx***xxxxxxxxxxxxxxxoxxxxxxxxxxxx
 xxxxxxxxxmxxxxxxxxxx***xxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxx**xxxxxxx--------xxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxx*xxxxxxxxxxxxxx-xxxxxxxxxxxx
@@ -97,6 +97,10 @@ class Board:
                     newRow.append(BoardItem("edible", "mushroom"))
                 elif cell == "w":
                     newRow.append(BoardItem("armour", "waterboots"))
+                elif cell == "u":
+                    newRow.append(BoardItem("monster", "uruk-hai"))
+                elif cell == "o":
+                    newRow.append(BoardItem("monster", "orc"))
                 else:
                     newRow.append(BoardItem("terrain", "grass"))
             self.grid.append(newRow)
@@ -168,6 +172,12 @@ class Hero:
         self.cookState = "inventory"
         self.selectedItemIdx = 0
         self.shouldRemoveSelectedItem = False
+        self.newHeroState = {
+            newPosX = 0,
+            newPosY = 0,
+            shouldUpdatePos = False,
+
+        }
     
     def move(self, mode, board, action):
         global debugStr
@@ -200,7 +210,7 @@ class Hero:
         if boardItemSubType == "water":
             if "waterwalking" in self.mods:
                 return False
-        if boardItemType == "terrain" or boardItemType == "monsters":
+        if boardItemType == "terrain" or boardItemType == "monster":
             return True
         
         # Default to not blocked
@@ -214,6 +224,32 @@ class Hero:
         if boardItem.mainType == "weapon" or boardItem.mainType == "edible" or boardItem.mainType == "armour":
             self.inventory.append(boardItem)
             board.grid[self.y][self.x] = BoardItem("terrain", "grass")
+
+    def combat(self, board, action):
+        global debugStr
+
+        # newX, newY = self.x, self.y
+        # if action == Actions.UP:
+        #     newY -= 1
+        # elif action == Actions.DOWN:
+        #     newY += 1
+        # elif action == Actions.RIGHT:
+        #     newX += 1
+        # elif action == Actions.LEFT:
+        #     newX -= 1
+
+        # boardItem = board.grid[newY][newX]
+        # if boardItem.mainType == "monster":
+        #     # Do dmg to monster
+        #     totalDmg = 0
+        #     for pos, items in self.equipMap.items():
+        #         for item in items:
+        #             # debugStr += item
+        #             itemDefn = gameItemDefns[item.subType]
+        #             totalDmg += itemDefn.dmg
+        #     debugStr += str(totalDmg)x
+            # Do dmg to hero
+
 
     def selectItem(self, itemList, action):
         global debugStr
@@ -419,6 +455,10 @@ def drawBoard(stdscr, game, boardX, boardY):
                 stdscr.addstr(y, x, "b", curses.color_pair(Colors.ITEMS))
             elif cell.subType == "mushroom":
                 stdscr.addstr(y, x, "m", curses.color_pair(Colors.ITEMS))
+            elif cell.subType == "uruk-hai":
+                stdscr.addstr(y, x, "u", curses.color_pair(Colors.ITEMS))
+            elif cell.subType == "orc":
+                stdscr.addstr(y, x, "o", curses.color_pair(Colors.ITEMS))
             else:
                 stdscr.addstr(y, x, "x", curses.color_pair(Colors.GRASS))
 
@@ -545,6 +585,7 @@ def main(stdscr):
                 hero.move(game.mode, currBoard, action)
                 # Hero should pick up items regardless of what action is being taken
                 hero.pickup(game.mode, currBoard)
+                hero.combat(currBoard, action)
             if game.mode == "inventory":
                 hero.selectItem(game.hero.inventory, action)
                 hero.eat(game, action)

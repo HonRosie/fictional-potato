@@ -1,3 +1,4 @@
+import copy
 import curses
 from curses import wrapper
 from enum import Enum, IntEnum
@@ -211,8 +212,8 @@ class Hero:
         self.selectedItemIdx = 0
         self.shouldRemoveSelectedItem = False
 
-    
-    def move(self, board, action):
+
+    def computePos(self, board, action, ignoreObstacles):
         global debugStr
 
         newX, newY = self.x, self.y
@@ -221,15 +222,25 @@ class Hero:
         elif action == Actions.DOWN:
             newY += 1
         elif action == Actions.RIGHT:
+            debugStr += "right"
             newX += 1
         elif action == Actions.LEFT:
+            debugStr += "left"
             newX -= 1
-        
+
         # Check bounds and if move into next cell?
         if newX >= 0 and newX < board.width and newY >= 0 and newY < board.height:
-            if not self.isBlocked(board, newX, newY):
-                self.x = newX
-                self.y = newY
+            if ignoreObstacles or not self.isBlocked(board, newX, newY):
+                return newX, newY
+        return self.x, self.y
+
+    def move(self, board, action, newHero):
+        global debugStr
+        x, y = self.computePos(board, action, False)
+        debugStr += str(x) + "," + str(y) + " "
+        newHero.x = x
+        newHero.y = y
+        debugStr += str(newHero.x) + "," + str(newHero.y) + " "
 
             
     def isBlocked(self, board, newX, newY):
@@ -245,11 +256,12 @@ class Hero:
                 return False
         if boardItemType == "terrain" or boardItemType == "monster":
             return True
+        debugStr += "foo?"
         
         # Default to not blocked
         return False
 
-    def pickup(self, board):
+    def pickup(self, board, newHero):
         global debugStr
         # Check if there's an item at hero's x,y coordinates    
         boardItem = board.grid[self.y][self.x]
@@ -258,7 +270,7 @@ class Hero:
             self.inventory.append(boardItem)
             board.grid[self.y][self.x] = BoardItem("terrain", "grass")
 
-    def combat(self, board, action):
+    def combat(self, board, action, newHero):
         global debugStr
 
         # newX, newY = self.x, self.y
@@ -284,7 +296,7 @@ class Hero:
             # Do dmg to hero
 
 
-    def selectItem(self, itemList, action):
+    def selectItem(self, itemList, action, newHero):
         global debugStr
         # Move selection down/up
         if action == Actions.DOWN:
@@ -294,7 +306,7 @@ class Hero:
             if self.selectedItemIdx > 0:
                 self.selectedItemIdx -= 1
 
-    def removeSelectedItem(self, itemList):
+    def removeSelectedItem(self, itemList, newHero):
         if self.shouldRemoveSelectedItem == True:
             del itemList[self.selectedItemIdx]
             if self.selectedItemIdx > 0:
@@ -302,7 +314,7 @@ class Hero:
         self.shouldRemoveSelectedItem = False
 
 
-    def cook(self, action):
+    def cook(self, action, newHero):
         global debugStr
         # Pick which list to arrow through
         if action == Actions.LEFT:
@@ -323,9 +335,9 @@ class Hero:
 
         # Arrow through selected list
         if self.cookState == "pot":
-            self.selectItem(self.pot, action)
+            self.selectItem(self.pot, action, newHero)
         elif self.cookState == "inventory":
-            self.selectItem(self.inventory, action)
+            self.selectItem(self.inventory, action, newHero)
 
         # Either add or remove item from pot
         if action == Actions.ENTER:
@@ -352,7 +364,7 @@ class Hero:
 
 
     # Only applicable for edibles
-    def eat(self, game, action):
+    def eat(self, game, action, newHero):
         global debugStr
         # eat
         if action == Actions.ENTER:
@@ -370,7 +382,7 @@ class Hero:
                 
             
     # Equip hero with weapon or armour
-    def equip(self, game, action):
+    def equip(self, game, action, newHero):
         global debugStr
 
         if action == Actions.ENTER:
@@ -594,6 +606,8 @@ ActionMap = {
     ord("q"): Actions.QUIT
 }
 
+
+
 def main(stdscr):
     global debugStr
     game = Game()
@@ -613,27 +627,30 @@ def main(stdscr):
             action = ActionMap[key]
             if action == Actions.QUIT:
                 break
+            newHero = copy.deepcopy(game.hero)
             if game.mode == Modes.PLAY:
                 isChanged = game.changeModeFromPlay(action)
                 if isChanged:
                     continue
-                hero.move(currBoard, action)
+                hero.move(currBoard, action, newHero)
                 # Hero should pick up items regardless of what action is being taken
-                hero.pickup(currBoard)
-                hero.combat(currBoard, action)
+                hero.pickup(currBoard, newHero)
+                hero.combat(currBoard, action, newHero)
             if game.mode == Modes.INVENTORY:
                 isChanged = game.changeModeFromInventory(action)
                 if isChanged:
                     continue
-                hero.selectItem(game.hero.inventory, action)
-                hero.eat(game, action)
-                hero.equip(game, action)
-                hero.removeSelectedItem(game.hero.inventory)
+                hero.selectItem(game.hero.inventory, action, newHero)
+                hero.eat(game, action, newHero)
+                hero.equip(game, action, newHero)
+                hero.removeSelectedItem(game.hero.inventory, newHero)
             if game.mode == Modes.COOK:
                 isChanged = game.changeModeFromCook(action)
                 if isChanged:
                     continue
-                hero.cook(action)
+                hero.cook(action, newHero)
+            game.hero = newHero
+            debugStr += str(game.hero.x) + "," + str(game.hero.y) + " "
 
 
 

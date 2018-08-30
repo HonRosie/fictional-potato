@@ -303,6 +303,7 @@ class Hero:
                 newHero.selectedItemIdx -= 1
 
     def removeSelectedItem(self, itemList, newHero):
+        # TODO Is it okay to assume order is the same across deep copy?
         del itemList[newHero.selectedItemIdx]
         if self.selectedItemIdx > 0:
             newHero.selectedItemIdx -= 1
@@ -387,13 +388,18 @@ class Hero:
 
                 # Dequip
                 # Loop through list of items at possible equip position.
-                for currItem in self.equipMap[possibleEquipPos]: # Also BoardItem
-                    # If item matches selected item, dequip
-                    if currItem == selectedItem:
-                        self.equipMap[possibleEquipPos].remove(currItem)
+                for idx, currItem in enumerate(self.equipMap[possibleEquipPos]): # Also BoardItem
+                    # If item matches selected item, dequip. Comparison by object no longer works
+                    # TODO: Suspicion is even though when addied, is adding same item from inventory to equipMap. However
+                    # during deep copy, copies of inventory and equipMap are made, where the items no longer reference each other
+                    # ie. "foo" from inventory() is added to equipMap so it also has "foo".
+                    # During deep copy, "foo" in inventory becomes "foo1", and "foo" in equipMap becomes "foo2"?
+                    if currItem.id == selectedItem.id:
+                        # TODO: Should this instead be a loop which removes the correct id?
+                        del newHero.equipMap[possibleEquipPos][idx]
                         for mod in itemDefn.mods:
-                            self.mods.remove(mod)
-                        debugStr += "dequip" + str(self.equipMap[possibleEquipPos])
+                            newHero.mods.remove(mod)
+                        debugStr += "dequip" + str(newHero.equipMap[possibleEquipPos])
                         return
 
                 # Equip
@@ -419,10 +425,10 @@ class Hero:
                     return
                 # Equip!
                 else:
-                    self.equipMap[possibleEquipPos].append(selectedItem)
+                    newHero.equipMap[possibleEquipPos].append(selectedItem)
                     for mod in itemDefn.mods:
-                        self.mods.add(mod)
-                    debugStr += "equip: " + str(self.equipMap[possibleEquipPos])
+                        newHero.mods.add(mod)
+                    debugStr += "equip: " + str(newHero.equipMap[possibleEquipPos])
 
                     
 

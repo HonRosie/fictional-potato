@@ -297,17 +297,15 @@ class Hero:
         # Move selection down/up
         if action == Actions.DOWN:
             if self.selectedItemIdx < len(itemList)-1:
-                self.selectedItemIdx += 1
+                newHero.selectedItemIdx += 1
         if action == Actions.UP:
             if self.selectedItemIdx > 0:
-                self.selectedItemIdx -= 1
+                newHero.selectedItemIdx -= 1
 
     def removeSelectedItem(self, itemList, newHero):
-        if self.shouldRemoveSelectedItem == True:
-            del itemList[self.selectedItemIdx]
-            if self.selectedItemIdx > 0:
-                self.selectedItemIdx -= 1
-        self.shouldRemoveSelectedItem = False
+        del itemList[newHero.selectedItemIdx]
+        if self.selectedItemIdx > 0:
+            newHero.selectedItemIdx -= 1
 
 
     def cook(self, action, newHero):
@@ -368,13 +366,13 @@ class Hero:
             if selectedItem.mainType == "edible":
                 itemDefn = gameItemDefns[selectedItem.subType]
                 # Apply dmg, if any
-                self.health -= itemDefn.dmg
+                newHero.health -= itemDefn.dmg
                 # Apply healing, if any
-                self.health += itemDefn.healing
+                newHero.health += itemDefn.healing
                 # Apply mods, if any
                 for mod in itemDefn.mods:
-                    self.mods.add(mod)
-                self.shouldRemoveSelectedItem = True
+                    newHero.mods.add(mod)
+                self.removeSelectedItem(newHero.inventory, newHero)
                 
             
     # Equip hero with weapon or armour
@@ -640,7 +638,7 @@ def main(stdscr):
                 hero.selectItem(game.hero.inventory, action, newHero)
                 hero.eat(game, action, newHero)
                 hero.equip(game, action, newHero)
-                hero.removeSelectedItem(game.hero.inventory, newHero)
+                # hero.removeSelectedItem(game.hero.inventory, newHero)
             if game.mode == Modes.COOK:
                 isChanged = game.changeModeFromCook(action)
                 if isChanged:

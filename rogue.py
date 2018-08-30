@@ -213,22 +213,19 @@ class Hero:
         self.shouldRemoveSelectedItem = False
 
 
-    def computePos(self, board, action, ignoreObstacles):
+    def computeNewPos(self, board, action, ignoreObstacles):
         global debugStr
-
         newX, newY = self.x, self.y
         if action == Actions.UP:
             newY -= 1
         elif action == Actions.DOWN:
             newY += 1
         elif action == Actions.RIGHT:
-            debugStr += "right"
             newX += 1
         elif action == Actions.LEFT:
-            debugStr += "left"
             newX -= 1
 
-        # Check bounds and if move into next cell?
+        # Check bounds and if should return new or old position
         if newX >= 0 and newX < board.width and newY >= 0 and newY < board.height:
             if ignoreObstacles or not self.isBlocked(board, newX, newY):
                 return newX, newY
@@ -236,11 +233,10 @@ class Hero:
 
     def move(self, board, action, newHero):
         global debugStr
-        x, y = self.computePos(board, action, False)
-        debugStr += str(x) + "," + str(y) + " "
-        newHero.x = x
-        newHero.y = y
-        debugStr += str(newHero.x) + "," + str(newHero.y) + " "
+        newX, newY = self.computeNewPos(board, action, False)
+        
+        newHero.x = newX
+        newHero.y = newY
 
             
     def isBlocked(self, board, newX, newY):
@@ -256,19 +252,19 @@ class Hero:
                 return False
         if boardItemType == "terrain" or boardItemType == "monster":
             return True
-        debugStr += "foo?"
         
         # Default to not blocked
         return False
 
-    def pickup(self, board, newHero):
+    def pickup(self, board, action, newHero):
         global debugStr
+        newX, newY = self.computeNewPos(board, action, False)
         # Check if there's an item at hero's x,y coordinates    
-        boardItem = board.grid[self.y][self.x]
+        boardItem = board.grid[newY][newX]
         # Pick up items
         if boardItem.mainType == "weapon" or boardItem.mainType == "edible" or boardItem.mainType == "armour":
-            self.inventory.append(boardItem)
-            board.grid[self.y][self.x] = BoardItem("terrain", "grass")
+            newHero.inventory.append(boardItem)
+            board.grid[newY][newX] = BoardItem("terrain", "grass")
 
     def combat(self, board, action, newHero):
         global debugStr
@@ -613,7 +609,7 @@ def main(stdscr):
     game = Game()
     game.initGame()
     currBoard = game.boards[game.currBoardId]
-    hero = game.hero
+    
 
     # Settings for nCurses
     curses.curs_set(False)
@@ -621,6 +617,7 @@ def main(stdscr):
 
     # Game loop
     while True:
+        hero = game.hero
         draw(stdscr, game)
         key = stdscr.getch()
         if key in ActionMap:
@@ -634,7 +631,7 @@ def main(stdscr):
                     continue
                 hero.move(currBoard, action, newHero)
                 # Hero should pick up items regardless of what action is being taken
-                hero.pickup(currBoard, newHero)
+                hero.pickup(currBoard,action, newHero)
                 hero.combat(currBoard, action, newHero)
             if game.mode == Modes.INVENTORY:
                 isChanged = game.changeModeFromInventory(action)
@@ -650,7 +647,6 @@ def main(stdscr):
                     continue
                 hero.cook(action, newHero)
             game.hero = newHero
-            debugStr += str(game.hero.x) + "," + str(game.hero.y) + " "
 
 
 

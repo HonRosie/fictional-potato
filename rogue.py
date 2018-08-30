@@ -75,31 +75,23 @@ class Game:
         if action == Actions.TOGGLE:
             self.hero.selectedItemIdx = 0
             self.mode = Modes.INVENTORY
-            return True
         if action == Actions.COOK:
             self.hero.selectedItemIdx = 0
             self.mode = Modes.COOK
-            return True
-        return False
 
     def changeModeFromInventory(self, action):
         global debugStr
         if action == Actions.TOGGLE:
             self.hero.selectedItemIdx = 0
             self.mode = Modes.PLAY
-            return True
         if action == Actions.COOK:
             self.hero.selectedItemIdx = 0
             self.mode = Modes.COOK
-            return True
-        return False
 
     def changeModeFromCook(self, action):
         global debugStr
         if action == Actions.COOK:
             self.mode = Modes.PLAY
-            return True
-        return False
 
 
 
@@ -390,8 +382,9 @@ class Hero:
                 # Loop through list of items at possible equip position.
                 for idx, currItem in enumerate(self.equipMap[possibleEquipPos]): # Also BoardItem
                     # If item matches selected item, dequip. Comparison by object no longer works
-                    # TODO: Suspicion is even though when addied, is adding same item from inventory to equipMap. However
-                    # during deep copy, copies of inventory and equipMap are made, where the items no longer reference each other
+                    # TODO: Suspicion is even though when addied, is adding same item from inventory to equipMap.
+                    # However, during deep copy, copies of inventory and equipMap are made, where the items no
+                    # longer reference each other
                     # ie. "foo" from inventory() is added to equipMap so it also has "foo".
                     # During deep copy, "foo" in inventory becomes "foo1", and "foo" in equipMap becomes "foo2"?
                     if currItem.id == selectedItem.id:
@@ -409,7 +402,7 @@ class Hero:
                 if numItemsAtEquipPos == maxItemsPerPos[possibleEquipPos]:
                     errorStr = f"You can only have {maxItemsPerPos[possibleEquipPos]!r} items in {possibleEquipPos}"
                     game.messages.append(errorStr)
-                    debugStr += "Cannot equip. Too many already: " + str(self.equipMap[possibleEquipPos])
+                    debugStr += "Too many already: " + str(self.equipMap[possibleEquipPos])
                     return
                 # Can't equip dualhanded weapon if already have a one handed weapon
                 elif possibleEquipPos == "dualHands" and len(self.equipMap["hands"]) > 0:
@@ -630,25 +623,19 @@ def main(stdscr):
                 break
             newHero = copy.deepcopy(game.hero)
             if game.mode == Modes.PLAY:
-                isChanged = game.changeModeFromPlay(action)
-                if isChanged:
-                    continue
+                game.changeModeFromPlay(action)
                 hero.move(currBoard, action, newHero)
                 # Hero should pick up items regardless of what action is being taken
                 hero.pickup(currBoard,action, newHero)
                 hero.combat(currBoard, action, newHero)
-            if game.mode == Modes.INVENTORY:
-                isChanged = game.changeModeFromInventory(action)
-                if isChanged:
-                    continue
+            elif game.mode == Modes.INVENTORY:
+                game.changeModeFromInventory(action)
                 hero.selectItem(game.hero.inventory, action, newHero)
                 hero.eat(game, action, newHero)
                 hero.equip(game, action, newHero)
                 # hero.removeSelectedItem(game.hero.inventory, newHero)
-            if game.mode == Modes.COOK:
-                isChanged = game.changeModeFromCook(action)
-                if isChanged:
-                    continue
+            elif game.mode == Modes.COOK:
+                game.changeModeFromCook(action)
                 hero.cook(action, newHero)
             game.hero = newHero
 

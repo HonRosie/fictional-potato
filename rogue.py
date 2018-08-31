@@ -1,5 +1,6 @@
 import copy
 import curses
+import random
 from curses import wrapper
 from enum import Enum, IntEnum
 
@@ -15,7 +16,7 @@ xxxxxxxxxxxxxxxxxx***xxxxxxxxxxxxxxxxxxxsxxxxxxxxx
 xxxxxxxxxxxxxxxxxxx***xxxxxxxxxxxxxxxoxxxxxxxxxxxx
 xxxxxxxxxmxxxxxxxxxx***xxxxxxxxxxxxxxxxxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxx**xxxxxxx--------xxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxx*xxxxxxxxxxxxxx-xxxxxxxxxxxx
+xxxxxxx@xxxxxxxxxxxxxx*xxxxxxxxxxxxxx-xxxxxxxxxxxx
 xxxxxxxxxxxxxxxwxxxxxxxxxxxxxbxxxxxxx-xxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxx
 xxxxxxxxxxxxxxxxxaxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxx
@@ -70,25 +71,25 @@ class Game:
     #         else:
     #             self.mode = "cook"
 
-    def changeModeFromPlay(self, action):
+    def changeModeFromPlay(self, action, newHero):
         global debugStr
         if action == Actions.TOGGLE:
-            self.hero.selectedItemIdx = 0
+            newHero.selectedItemIdx = 0
             self.mode = Modes.INVENTORY
         if action == Actions.COOK:
-            self.hero.selectedItemIdx = 0
+            newHero.selectedItemIdx = 0
             self.mode = Modes.COOK
 
-    def changeModeFromInventory(self, action):
+    def changeModeFromInventory(self, action, newHero):
         global debugStr
         if action == Actions.TOGGLE:
-            self.hero.selectedItemIdx = 0
+            newHero.selectedItemIdx = 0
             self.mode = Modes.PLAY
         if action == Actions.COOK:
-            self.hero.selectedItemIdx = 0
+            newHero.selectedItemIdx = 0
             self.mode = Modes.COOK
 
-    def changeModeFromCook(self, action):
+    def changeModeFromCook(self, action, newHero):
         global debugStr
         if action == Actions.COOK:
             self.mode = Modes.PLAY
@@ -106,7 +107,9 @@ class Board:
         global debugStr
         self.id = self.nextBoardId
         Board.nextBoardId += 1
+
         self.grid = []
+        self.currMonster = None # Item Definition
 
         # Eventually when generating terrain, this possibly should just initialize a x by y grid of grass
         board = mainBoard.split("\n")
@@ -132,6 +135,8 @@ class Board:
                     newRow.append(BoardItem("monster", "uruk-hai"))
                 elif cell == "o":
                     newRow.append(BoardItem("monster", "orc"))
+                elif cell == "@":
+                    newRow.append(BoardItem("armour", "basic armour"))
                 else:
                     newRow.append(BoardItem("terrain", "grass"))
             self.grid.append(newRow)
@@ -155,12 +160,13 @@ class BoardItem:
         self.subType = subType
 
 class ItemDefinition:
-    def __init__(self, equipPos=None, dmg=0, defense=0, stealth=0, healing=0, mods=[]):
+    def __init__(self, equipPos=None, dmg=0, defense=0, stealth=0, healing=0, mods=[], health=0):
         self.equipPos = equipPos
-        self.dmg = dmg # Hero or monster health
+        self.dmg = dmg # Hero or monster dmg
         self.defense = defense # Hero or monster defense
         self.healing = healing # Hero health
         self.mods = mods # Hero mods
+        self.health = health # monster health
 
 gameItemDefns = {
     "sword": ItemDefinition(dmg=6, equipPos="hands"),
@@ -170,6 +176,9 @@ gameItemDefns = {
     "mushroom": ItemDefinition(mods=["stealth"]),
     "boots": ItemDefinition(defense=1, equipPos="feet"),
     "waterboots": ItemDefinition(equipPos="feet", mods=["waterwalking"]),
+    "basic armour": ItemDefinition(defense=2, equipPos="body"),
+    "uruk-hai": ItemDefinition(dmg=12, defense=3, health=30),
+    "orc": ItemDefinition(dmg=8, defense=3, health=20)
 }
 
 maxItemsPerPos = {
@@ -258,33 +267,54 @@ class Hero:
             newHero.inventory.append(boardItem)
             board.grid[newY][newX] = BoardItem("terrain", "grass")
 
-    def combat(self, board, action, newHero):
+    def combat(self, game, board, action, newHero):
         global debugStr
 
-        # newX, newY = self.x, self.y
-        # if action == Actions.UP:
-        #     newY -= 1
-        # elif action == Actions.DOWN:
-        #     newY += 1
-        # elif action == Actions.RIGHT:
-        #     newX += 1
-        # elif action == Actions.LEFT:
-        #     newX -= 1
+        newX, newY = self.computeNewPos(board, action, True)
+        boardItem = board.grid[newY][newX]
 
-        # boardItem = board.grid[newY][newX]
-        # if boardItem.mainType == "monster":
-        #     # Do dmg to monster
-        #     totalDmg = 0
-        #     for pos, items in self.equipMap.items():
-        #         for item in items:
-        #             # debugStr += item
-        #             itemDefn = gameItemDefns[item.subType]
-        #             totalDmg += itemDefn.dmg
-        #     debugStr += str(totalDmg)x
-            # Do dmg to hero
+        if boardItem.mainType == "monster":
+            if board.currMonster == None:
+                debugStr += "foo"
+                board.currMonster = {
+                    "monsterId": boardItem.id
+                }
+                # Calculate dmg of monster
+                monsterDefn = gameItemDefns[boardItem.subType]
+                board.currMonster["dmg"] = monsterDefn.dmg
+                board.currMonster["defense"] = monsterDefn.defense
+                board.currMonster["health"] = monsterDefn.health
+            
+            monster = board.currMonster
+
+            # Calculate dmg of hero
+            heroDmg, heroDefense = 0, 0
+            for pos, itemList in self.equipMap.items():
+                for item in itemList:
+                    itemDefn = gameItemDefns[item.subType]
+                    heroDmg += itemDefn.dmg
+                    heroDefense += itemDefn.defense
+
+            # inflict dmg
+            heroFinalDmg = heroDmg * (1 - monster["defense"]/100)
+            monsterFinalDmg = monster["dmg"] * (1 - heroDefense/100)
+
+            newHero.health -= monsterFinalDmg
+            monster["health"] -= heroFinalDmg
+
+            if monster["health"] <= 0:
+                message = f"Successful beat {boardItem.subType}!!"
+                game.messages.append(message)
+                board.grid[newY][newX] = BoardItem("terrain", "grass")
+                board.currMonster = None
 
 
-    def selectItem(self, itemList, action, newHero):
+    def chanceOfDmg(self, defense):
+        randomNum = random.randrange(100)
+        return randomNum > defense
+
+
+    def moveSelection(self, itemList, action, newHero):
         global debugStr
         # Move selection down/up
         if action == Actions.DOWN:
@@ -322,9 +352,9 @@ class Hero:
 
         # Arrow through selected list
         if self.cookState == "pot":
-            self.selectItem(self.pot, action, newHero)
+            self.moveSelection(self.pot, action, newHero)
         elif self.cookState == "inventory":
-            self.selectItem(self.inventory, action, newHero)
+            self.moveSelection(self.inventory, action, newHero)
 
         # Either add or remove item from pot
         if action == Actions.ENTER:
@@ -390,7 +420,7 @@ class Hero:
                         del newHero.equipMap[possibleEquipPos][idx]
                         for mod in itemDefn.mods:
                             newHero.mods.remove(mod)
-                        debugStr += "dequip" + str(newHero.equipMap[possibleEquipPos])
+                        # debugStr += "dequip" + str(newHero.equipMap[possibleEquipPos])
                         return
 
                 # Equip
@@ -400,26 +430,26 @@ class Hero:
                 if numItemsAtEquipPos == maxItemsPerPos[possibleEquipPos]:
                     errorStr = f"You can only have {maxItemsPerPos[possibleEquipPos]!r} items in {possibleEquipPos}"
                     game.messages.append(errorStr)
-                    debugStr += "Too many already: " + str(self.equipMap[possibleEquipPos])
+                    # debugStr += "Too many already: " + str(self.equipMap[possibleEquipPos])
                     return
                 # Can't equip dualhanded weapon if already have a one handed weapon
                 elif possibleEquipPos == "dualHands" and len(self.equipMap["hands"]) > 0:
                     errorStr = f"This is a 2-handed item and you are already holding another item"
                     game.messages.append(errorStr)
-                    debugStr += "Cannot equp dualhands: " + str(self.equipMap[possibleEquipPos])
+                    # debugStr += "Cannot equp dualhands: " + str(self.equipMap[possibleEquipPos])
                     return
                 # Cannot equip any more hand weapons if already holding a dualhanded weapon
                 elif possibleEquipPos == "hands" and len(self.equipMap["dualHands"]) == 1:
                     errorStr = f"You don't have enough hands. Drop an item or make friends with an octopus!"
                     game.messages.append(errorStr)
-                    debugStr += "Cannot equp hands: " + str(self.equipMap[possibleEquipPos])
+                    # debugStr += "Cannot equp hands: " + str(self.equipMap[possibleEquipPos])
                     return
                 # Equip!
                 else:
                     newHero.equipMap[possibleEquipPos].append(selectedItem)
                     for mod in itemDefn.mods:
                         newHero.mods.add(mod)
-                    debugStr += "equip: " + str(newHero.equipMap[possibleEquipPos])
+                    # debugStr += "equip: " + str(newHero.equipMap[possibleEquipPos])
 
                     
 
@@ -439,6 +469,7 @@ def resize(stdscr, game):
     game.boardOriginX = int(middleX - game.boards[game.currBoardId].width/2)
 
     return maxY, maxX
+
 
 def drawInventory(stdscr, game, posX, posY):
     global debugStr
@@ -493,6 +524,8 @@ def drawBoard(stdscr, game, boardX, boardY):
                 stdscr.addstr(y, x, "u", curses.color_pair(Colors.ITEMS))
             elif cell.subType == "orc":
                 stdscr.addstr(y, x, "o", curses.color_pair(Colors.ITEMS))
+            elif cell.subType == "basic armour":
+                stdscr.addstr(y, x, "@", curses.color_pair(Colors.ITEMS))
             else:
                 stdscr.addstr(y, x, "x", curses.color_pair(Colors.GRASS))
 
@@ -505,6 +538,16 @@ def drawHeroStats(stdscr, game, heroStatsX, heroStatsY, maxY, maxX):
     stdscr.addstr(heroStatsY, heroStatsX, "Hero Stats")
     heroStatsY += 1
     stdscr.addstr(heroStatsY, heroStatsX, "Health: " + str(game.hero.health))
+    heroDmg, heroDefense = 0, 0
+    for pos, itemList in game.hero.equipMap.items():
+        for item in itemList:
+            itemDefn = gameItemDefns[item.subType]
+            heroDmg += itemDefn.dmg
+            heroDefense += itemDefn.defense
+    heroStatsY += 1                
+    stdscr.addstr(heroStatsY, heroStatsX, "Damage: " + str(heroDmg))
+    heroStatsY += 1
+    stdscr.addstr(heroStatsY, heroStatsX, "Defense: " + str(heroDefense))
     for mods in game.hero.mods:
         heroStatsY += 1
         stdscr.addstr(heroStatsY, heroStatsX, mods)
@@ -621,19 +664,19 @@ def main(stdscr):
                 break
             newHero = copy.deepcopy(game.hero)
             if game.mode == Modes.PLAY:
-                game.changeModeFromPlay(action)
+                game.changeModeFromPlay(action, newHero)
                 hero.move(currBoard, action, newHero)
                 # Hero should pick up items regardless of what action is being taken
                 hero.pickup(currBoard,action, newHero)
-                hero.combat(currBoard, action, newHero)
+                hero.combat(game, currBoard, action, newHero)
             elif game.mode == Modes.INVENTORY:
-                game.changeModeFromInventory(action)
-                hero.selectItem(game.hero.inventory, action, newHero)
+                game.changeModeFromInventory(action, newHero)
+                hero.moveSelection(game.hero.inventory, action, newHero)
                 hero.eat(game, action, newHero)
                 hero.equip(game, action, newHero)
                 # hero.removeSelectedItem(game.hero.inventory, newHero)
             elif game.mode == Modes.COOK:
-                game.changeModeFromCook(action)
+                game.changeModeFromCook(action, newHero)
                 hero.cook(action, newHero)
             game.hero = newHero
 

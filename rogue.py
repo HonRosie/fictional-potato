@@ -470,17 +470,15 @@ def resize(stdscr, game):
 
     return maxY, maxX
 
-
-def drawInventory(stdscr, game, posX, posY):
+def drawList(stdscr, game, itemList, title, posX, posY, displaySelector):
     global debugStr
-    stdscr.addstr(posY, posX, "Inventory", curses.color_pair(Colors.INVENTORY))
+    stdscr.addstr(posY, posX, title, curses.color_pair(Colors.INVENTORY))
     posY += 1
-    inventory = game.hero.inventory
-    for idx, item in enumerate(inventory):
+    for idx, item in enumerate(itemList):
         color = curses.color_pair(Colors.ITEMS)
         itemString = item.subType
         # Add asterik if item is selected
-        if idx == game.hero.selectedItemIdx and (game.hero.cookState != "pot" and game.hero.cookState != "cook"):
+        if idx == game.hero.selectedItemIdx and displaySelector:
             itemString += " * "
         # Make item green if is equipped
         equippedPos = gameItemDefns[item.subType].equipPos
@@ -490,17 +488,6 @@ def drawInventory(stdscr, game, posX, posY):
                     color = curses.color_pair(Colors.GRASS)
         stdscr.addstr(posY, posX, itemString, color)
         posY += 1
-
-def drawPot(stdscr, game, potX, potY):
-    stdscr.addstr(potY, potX, "Pot", curses.color_pair(Colors.INVENTORY))
-    potY += 1
-    for idx, item in enumerate(game.hero.pot):
-        color = curses.color_pair(Colors.ITEMS)
-        itemString = item.subType
-        if idx == game.hero.selectedItemIdx and game.hero.cookState == "pot":
-            itemString += " * "
-        stdscr.addstr(potY, potX, itemString, color)
-        potY += 1
 
 def drawBoard(stdscr, game, boardX, boardY):
     board = game.boards[game.currBoardId].grid
@@ -555,11 +542,13 @@ def drawHeroStats(stdscr, game, heroStatsX, heroStatsY, maxY, maxX):
 def drawCookMode(stdscr, game):
     inventoryX = game.boardOriginX
     inventoryY = game.boardOriginY
-    drawInventory(stdscr, game, inventoryX, inventoryY)
+    displaySelector = game.hero.cookState == "inventory"
+    drawList(stdscr, game, game.hero.inventory, "Inventory", inventoryX, inventoryY, displaySelector)
 
     potX = game.boardOriginX + 30
     potY = game.boardOriginY
-    drawPot(stdscr, game, potX, potY)
+    displaySelector = game.hero.cookState == "pot"
+    drawList(stdscr, game, game.hero.pot, "Pot", potX, potY, displaySelector)
 
     # Cook
     cookString = "Cook?"
@@ -586,7 +575,8 @@ def drawPlayMode(stdscr, game, maxY, maxX):
     # Draw inventory
     inventoryX = 0
     inventoryY = game.boardOriginY
-    drawInventory(stdscr, game, inventoryX, inventoryY)
+    displaySelector = game.mode == Modes.INVENTORY
+    drawList(stdscr, game, game.hero.inventory, "Inventory", inventoryX, inventoryY, displaySelector)
 
 def draw(stdscr, game):
     global debugStr

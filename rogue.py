@@ -377,10 +377,20 @@ class Hero:
                 newHero.inventory.append(self.pot[self.selectedItemIdx])
                 self.removeSelectedItem(newHero.pot, newHero)
             elif self.cookState == "cook":
-                        
-                # self.inventory.append(BoardItem("potion", "potion"))
-                # self.pot = []
-                # do something
+                cookedItem = BoardItem("edible", "potion")
+                cookedItem.subType = "potion" + str(cookedItem.id)
+                newHero.inventory.append(cookedItem)
+
+                # calculate game definition
+                dmg, healing, health = 0, 0, 0
+                mods = []
+                for item in self.pot:
+                    defn = gameItemDefns[item.subType]
+                    healing += defn.healing
+                    dmg += defn.dmg
+                    mods.extend(defn.mods)
+                gameItemDefns[cookedItem.subType] = ItemDefinition(healing=healing, dmg=dmg, mods=mods)
+                newHero.pot = []
                 debugStr += " Create new item to add to inventory"
                 
     

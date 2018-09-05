@@ -45,6 +45,7 @@ class Game:
         self.boardOriginX = None
         self.boardOriginY = None
         self.messages = []
+        self.isGameOver = False
         # self.selectedItemIdx = 0
 
     def initGame(self):
@@ -96,7 +97,7 @@ class Game:
 
 
 
-            
+
 
 #################################
 # Board/Items
@@ -132,9 +133,15 @@ class Board:
                 elif cell == "w":
                     newRow.append(BoardItem("armour", "waterboots"))
                 elif cell == "u":
-                    newRow.append(BoardItem("monster", "uruk-hai"))
+                    monster = BoardItem("monster", "uruk-hai")
+                    newRow.append(monster)
+                    monsterInstance = createMonsterInstance(monster.subType)
+                    gameMonsterInstances[monster.id] = monsterInstance
                 elif cell == "o":
-                    newRow.append(BoardItem("monster", "orc"))
+                    monster = BoardItem("monster", "orc")
+                    newRow.append(monster)
+                    monsterInstance = createMonsterInstance(monster.subType)
+                    gameMonsterInstances[monster.id] = monsterInstance
                 elif cell == "@":
                     newRow.append(BoardItem("armour", "basic armour"))
                 else:
@@ -150,6 +157,15 @@ class Board:
 
         # Generate terrain??
 
+gameMonsterInstances = {}
+
+def createMonsterInstance(monster):
+    monsterDefn = gameItemDefns[monster]
+    return {
+        "defense": monsterDefn.defense,
+        "health": monsterDefn.health,
+        "dmg": monsterDefn.dmg
+    }
 
 class BoardItem:
     boardItemNextId = 0
@@ -274,19 +290,11 @@ class Hero:
         boardItem = board.grid[newY][newX]
 
         if boardItem.mainType == "monster":
-            if board.currMonster == None:
-                debugStr += "foo"
-                board.currMonster = {
-                    "monsterId": boardItem.id
-                }
-                # Calculate dmg of monster
-                monsterDefn = gameItemDefns[boardItem.subType]
-                board.currMonster["dmg"] = monsterDefn.dmg
-                board.currMonster["defense"] = monsterDefn.defense
-                board.currMonster["health"] = monsterDefn.health
-            
-            monster = board.currMonster
+            debugStr += "foo"
 
+            # Calculate dmg of monster
+            monster = gameMonsterInstances[boardItem.id]
+            
             # Calculate dmg of hero
             heroDmg, heroDefense = 0, 0
             for pos, itemList in self.equipMap.items():
@@ -303,10 +311,14 @@ class Hero:
             monster["health"] -= heroFinalDmg
 
             if monster["health"] <= 0:
-                message = f"Successful beat {boardItem.subType}!!"
+                message = f"Successfully beat {boardItem.subType}!!"
                 game.messages.append(message)
                 board.grid[newY][newX] = BoardItem("terrain", "grass")
-                board.currMonster = None
+            
+            if newHero.health <= 0:
+                newHero.health = 0
+                game.messages.append("Game over!")
+                game.isGameOver = True
 
 
     def chanceOfDmg(self, defense):
@@ -578,6 +590,7 @@ def drawPlayMode(stdscr, game, maxY, maxX):
     displaySelector = game.mode == Modes.INVENTORY
     drawList(stdscr, game, game.hero.inventory, "Inventory", inventoryX, inventoryY, displaySelector)
 
+
 def draw(stdscr, game):
     global debugStr
     # TODO: What's practical difference between erase and clear?
@@ -644,14 +657,16 @@ def main(stdscr):
     initColors()
 
     # Game loop
+    draw(stdscr, game)
     while True:
         hero = game.hero
-        draw(stdscr, game)
         key = stdscr.getch()
         if key in ActionMap:
             action = ActionMap[key]
             if action == Actions.QUIT:
                 break
+            if game.isGameOver == True:
+                continue
             newHero = copy.deepcopy(game.hero)
             if game.mode == Modes.PLAY:
                 game.changeModeFromPlay(action, newHero)
@@ -669,6 +684,7 @@ def main(stdscr):
                 game.changeModeFromCook(action, newHero)
                 hero.cook(action, newHero)
             game.hero = newHero
+            draw(stdscr, game)
 
 
 

@@ -55,22 +55,6 @@ class Game:
         board = Board()
         self.boards[board.id] = board
         self.hero = Hero()
-    
-    # def changeGameMode(self, action):
-    #     global debugStr
-    #     if action == Actions.TOGGLE and self.mode != "cook":
-    #         self.hero.selectedItemIdx = 0
-    #         if self.mode == "play":
-    #             self.mode = "inventory"
-    #         elif self.mode == "inventory":
-    #             self.mode = "play"
-    #     if action == Actions.COOK:
-    #         self.hero.selectedItemIdx = 0
-    #         if self.mode == "cook":
-    #             self.hero.addUncookedItemsBack()
-    #             self.mode = "play"
-    #         else:
-    #             self.mode = "cook"
 
     def changeModeFromPlay(self, action, newHero):
         global debugStr
@@ -110,7 +94,6 @@ class Board:
         Board.nextBoardId += 1
 
         self.grid = []
-        self.currMonster = None # Item Definition
 
         # Eventually when generating terrain, this possibly should just initialize a x by y grid of grass
         board = mainBoard.split("\n")
@@ -158,7 +141,6 @@ class Board:
         # Generate terrain??
 
 gameMonsterInstances = {}
-
 def createMonsterInstance(monster):
     monsterDefn = gameItemDefns[monster]
     return {
@@ -176,23 +158,42 @@ class BoardItem:
         self.subType = subType
 
 class ItemDefinition:
-    def __init__(self, equipPos=None, dmg=0, defense=0, stealth=0, healing=0, mods=[], health=0):
+    def __init__(self, equipPos=None, dmg=0, defense=0, stealth=0, healing=0, mods=[], health=0, inventory=[], info=None):
         self.equipPos = equipPos
         self.dmg = dmg # Hero or monster dmg
         self.defense = defense # Hero or monster defense
         self.healing = healing # Hero health
         self.mods = mods # Hero mods
         self.health = health # monster health
+        self.inventory = inventory # monster inventory
+        self.info = info # message to display upon pick up or use
+
+    def hasEquipPos(self):
+        if self.equipPos != None:
+            return True
+        else:
+            return False
+
+    def hasInfo(self):
+        if self.info != None:
+            return True
+        else:
+            return False
+    
 
 gameItemDefns = {
+    # weapons
     "sword": ItemDefinition(dmg=6, equipPos="hands"),
     "axe": ItemDefinition(dmg=8, equipPos="dualHands"),
     "spadone": ItemDefinition(dmg=8, equipPos="dualHands"),
     "bow": ItemDefinition(dmg=5, equipPos="hands"),
-    "mushroom": ItemDefinition(mods=["stealth"]),
+    # armour
     "boots": ItemDefinition(defense=1, equipPos="feet"),
     "waterboots": ItemDefinition(equipPos="feet", mods=["waterwalking"]),
     "basic armour": ItemDefinition(defense=2, equipPos="body"),
+    # edible
+    "mushroom": ItemDefinition(mods=["stealth"]),
+    # monster
     "uruk-hai": ItemDefinition(dmg=12, defense=3, health=30),
     "orc": ItemDefinition(dmg=8, defense=3, health=20)
 }
@@ -424,8 +425,8 @@ class Hero:
 
         if action == Actions.ENTER:
             selectedItem = self.inventory[self.selectedItemIdx] # BoardItem
-            if selectedItem.mainType == "weapon" or selectedItem.mainType == "armour":
-                itemDefn = gameItemDefns[selectedItem.subType]
+            itemDefn = gameItemDefns[selectedItem.subType]
+            if itemDefn.hasEquipPos():
                 possibleEquipPos = itemDefn.equipPos
 
                 # Dequip

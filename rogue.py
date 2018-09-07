@@ -1,30 +1,11 @@
 import copy
 import curses
 import random
+from terrain import terrainDict
+from gameInfo import requiredBoardItems
 from curses import wrapper
 from enum import Enum, IntEnum
 
-
-mainBoard = """xsxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xsxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xaxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xbxxxxxxxx-----xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxsxxxxxxxxx
-xxxxxxuxxxxxx*****xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxx***xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxx***xxxxxxxxxxxxxxxxxxxsxxxxxxxxx
-xxxxxxxxxxxxxxxxxxx***xxxxxxxxxxxxxxxoxxxxxxxxxxxx
-xxxxxxxxxmxxxxxxxxxx***xxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxx**xxxxxxx--------xxxxxxxxxxxx
-xxxxxxx@xxxxxxxxxxxxxx*xxxxxxxxxxxxxx-xxxxxxxxxxxx
-xxxxxxxxxxxxxxxwxxxxxxxxxxxxxbxxxxxxx-xxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxaxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxwxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"""
 
 debugStr = ""
 
@@ -36,12 +17,14 @@ class Modes(Enum):
     INVENTORY = 2
     COOK = 3
 
+
 class Game:
     def __init__(self):
         self.mode = Modes.PLAY
         self.hero = Hero()
         self.boards = {}
         self.currBoardId = 0
+        self.level = 0
         self.boardOriginX = None
         self.boardOriginY = None
         self.messages = []
@@ -52,9 +35,11 @@ class Game:
         global debugStr
         # Initialize all boards.
         # TODO: Probably means this should be done in a for loop?
-        board = Board()
+        board = Board("main")
         self.boards[board.id] = board
         self.hero = Hero()
+
+
 
     def changeModeFromPlay(self, action, newHero):
         global debugStr
@@ -80,53 +65,28 @@ class Game:
             self.mode = Modes.PLAY
 
 
-
-
-
 #################################
 # Board/Items
 #################################
 class Board:
     nextBoardId = 0
-    def __init__(self):
+    def __init__(self, boardName):
         global debugStr
         self.id = self.nextBoardId
         Board.nextBoardId += 1
+        self.boardName = boardName
 
         self.grid = []
 
-        # Eventually when generating terrain, this possibly should just initialize a x by y grid of grass
-        board = mainBoard.split("\n")
+        # Create terrain based off static map
+        board = terrainDict[boardName].split("\n")
         for row in board:
             newRow = []
             for cell in row:
-                if cell == '-':
-                    newRow.append(BoardItem("terrain", "wall"))
-                elif cell == '*':
+                if cell == "~":
                     newRow.append(BoardItem("terrain", "water"))
-                elif cell == "s":
-                    foo = BoardItem("weapon", "sword")
-                    newRow.append(foo)
-                elif cell == "a":
-                    newRow.append(BoardItem("weapon", "axe"))
-                elif cell == "b":
-                    newRow.append(BoardItem("weapon", "bow"))
-                elif cell == "m":
-                    newRow.append(BoardItem("edible", "mushroom"))
-                elif cell == "w":
-                    newRow.append(BoardItem("armour", "waterboots"))
-                elif cell == "u":
-                    monster = BoardItem("monster", "uruk-hai")
-                    newRow.append(monster)
-                    monsterInstance = createMonsterInstance(monster.subType)
-                    gameMonsterInstances[monster.id] = monsterInstance
-                elif cell == "o":
-                    monster = BoardItem("monster", "orc")
-                    newRow.append(monster)
-                    monsterInstance = createMonsterInstance(monster.subType)
-                    gameMonsterInstances[monster.id] = monsterInstance
-                elif cell == "@":
-                    newRow.append(BoardItem("armour", "basic armour"))
+                elif cell == "-":
+                    newRow.append(BoardItem("terrain", "wall"))
                 else:
                     newRow.append(BoardItem("terrain", "grass"))
             self.grid.append(newRow)
@@ -134,11 +94,23 @@ class Board:
         self.height = len(self.grid)
         self.width = len(self.grid[0])
 
-        # Generate items?
+        # Create required items
+        requiredItems = requiredBoardItems[boardName]
+        for mainType, itemList in requiredItems.items():
+            for subType in itemList:
+                # Randomly generate position
+                while True:
+                    x, y = self.genRandomPosition()
+                    if self.grid[y][x].subType == "grass":
+                        self.grid[y][x] = BoardItem(mainType, subType)
+                        break
 
-        # Generate monsters?
 
-        # Generate terrain??
+    def genRandomPosition(self):
+        x = random.randrange(self.width)
+        y = random.randrange(self.height)
+        return x, y
+
 
 gameMonsterInstances = {}
 def createMonsterInstance(monster):
@@ -291,7 +263,6 @@ class Hero:
         boardItem = board.grid[newY][newX]
 
         if boardItem.mainType == "monster":
-            debugStr += "foo"
 
             # Calculate dmg of monster
             monster = gameMonsterInstances[boardItem.id]
@@ -519,25 +490,21 @@ def drawBoard(stdscr, game, boardX, boardY):
             x = boardX + i
             y = boardY + j
             if cell.subType == "water":
-                stdscr.addstr(y, x, "*", curses.color_pair(Colors.WATER))
+                stdscr.addstr(y, x, "~", curses.color_pair(Colors.WATER))
             elif cell.subType == "wall":
                 stdscr.addstr(y, x, "-", curses.color_pair(Colors.WALL))
-            elif cell.subType == "sword":
-                stdscr.addstr(y, x, "s", curses.color_pair(Colors.ITEMS))
-            elif cell.subType == "axe":
-                stdscr.addstr(y, x, "a", curses.color_pair(Colors.ITEMS))
-            elif cell.subType == "bow":
-                stdscr.addstr(y, x, "b", curses.color_pair(Colors.ITEMS))
-            elif cell.subType == "mushroom":
-                stdscr.addstr(y, x, "m", curses.color_pair(Colors.ITEMS))
-            elif cell.subType == "uruk-hai":
-                stdscr.addstr(y, x, "u", curses.color_pair(Colors.ITEMS))
-            elif cell.subType == "orc":
-                stdscr.addstr(y, x, "o", curses.color_pair(Colors.ITEMS))
-            elif cell.subType == "basic armour":
-                stdscr.addstr(y, x, "@", curses.color_pair(Colors.ITEMS))
+            elif cell.mainType == "weapon":
+                stdscr.addstr(y, x, "|", curses.color_pair(Colors.ITEMS))
+            elif cell.mainType == "portal":
+                stdscr.addstr(y, x, "+", curses.color_pair(Colors.ITEMS))
+            # elif cell.subType == "mushroom":
+            #     stdscr.addstr(y, x, "m", curses.color_pair(Colors.ITEMS))
+            # elif cell.subType == "orc":
+            #     stdscr.addstr(y, x, "o", curses.color_pair(Colors.ITEMS))
+            # elif cell.subType == "basic armour":
+            #     stdscr.addstr(y, x, "@", curses.color_pair(Colors.ITEMS))
             else:
-                stdscr.addstr(y, x, "x", curses.color_pair(Colors.GRASS))
+                stdscr.addstr(y, x, ".", curses.color_pair(Colors.GRASS))
 
 def drawHero(stdscr, game, heroX, heroY):
     stdscr.addstr(heroY, heroX, "h", curses.color_pair(Colors.HERO))

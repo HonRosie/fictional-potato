@@ -2,7 +2,7 @@ import copy
 import curses
 import random
 from terrain import terrainDict
-from gameInfo import requiredBoardItems
+from gameInfo import requiredBoardItems, levelInfo, requiredLevelItems, randomLevelItems
 from curses import wrapper
 from enum import Enum, IntEnum
 
@@ -29,16 +29,48 @@ class Game:
         self.boardOriginY = None
         self.messages = []
         self.isGameOver = False
-        # self.selectedItemIdx = 0
 
     def initGame(self):
         global debugStr
         # Initialize all boards.
-        # TODO: Probably means this should be done in a for loop?
-        board = Board("main")
-        self.boards[board.id] = board
-        self.hero = Hero()
+        self.initLevel(self.level)
 
+    def initLevel(self, level):
+        global debugStr
+        boardsToInit = levelInfo[level]["boards"]
+        boardList = []
+        for board in boardsToInit:
+            board = Board(board)
+            self.boards[board.id] = board
+            boardList.append(board)
+
+        for mainType, itemCount in levelInfo[level]["itemCount"].items():
+            createdCount = 0
+            # Many not have required items for this level
+            if level in requiredLevelItems:
+                # May not have required level items for this mainType
+                requiredItems = requiredLevelItems[level].get(mainType, [])
+                if itemCount < len(requiredItems):
+                    raise NameError("Number of required items greater then items expected for this level")
+                for subType in requiredItems:
+                    # Randomly pick a board
+                    randIndex = random.randrange(len(boardList))
+                    board = boardList[randIndex]
+                    # Randomly generate position on that board
+                    x, y = board.genRandomValidPos()
+                    board.grid[y][x] = BoardItem(mainType, subType)
+                    createdCount += 1
+            for i in range(createdCount, itemCount):
+                # Randomly pick a board
+                randIndex = random.randrange(len(boardList))
+                board = boardList[randIndex]        
+                # Randomly generate an item. There should always exist random level items for a mainType
+                possibleRandomItems = randomLevelItems[level][mainType]
+                randIndex = random.randrange(len(possibleRandomItems))
+                randomSubType = possibleRandomItems[randIndex]
+                # Randomly generate position on that board
+                x, y = board.genRandomValidPos()
+                board.grid[y][x] = BoardItem(mainType, randomSubType)
 
 
     def changeModeFromPlay(self, action, newHero):
@@ -75,7 +107,6 @@ class Board:
         self.id = self.nextBoardId
         Board.nextBoardId += 1
         self.boardName = boardName
-
         self.grid = []
 
         # Create terrain based off static map
@@ -95,21 +126,23 @@ class Board:
         self.width = len(self.grid[0])
 
         # Create required items
-        requiredItems = requiredBoardItems[boardName]
+        requiredItems = requiredBoardItems.get(boardName, {})
         for mainType, itemList in requiredItems.items():
             for subType in itemList:
                 # Randomly generate position
-                while True:
-                    x, y = self.genRandomPosition()
-                    if self.grid[y][x].subType == "grass":
-                        self.grid[y][x] = BoardItem(mainType, subType)
-                        break
+                debugStr += "board"
+                x, y = self.genRandomValidPos()
+                self.grid[y][x] = BoardItem(mainType, subType)
 
 
-    def genRandomPosition(self):
-        x = random.randrange(self.width)
-        y = random.randrange(self.height)
-        return x, y
+    def genRandomValidPos(self):
+        global debugStr
+        debugStr += self.boardName + ":" + str(self.width) + "," + str(self.height) + " | "
+        while True:
+            x = random.randrange(self.width)
+            y = random.randrange(self.height)
+            if self.grid[y][x].subType == "grass":
+                return x, y
 
 
 gameMonsterInstances = {}
@@ -252,7 +285,7 @@ class Hero:
         # Check if there's an item at hero's x,y coordinates    
         boardItem = board.grid[newY][newX]
         # Pick up items
-        if boardItem.mainType == "weapon" or boardItem.mainType == "edible" or boardItem.mainType == "armour":
+        if boardItem.mainType == "weapons" or boardItem.mainType == "edible" or boardItem.mainType == "armour":
             newHero.inventory.append(boardItem)
             board.grid[newY][newX] = BoardItem("terrain", "grass")
 
@@ -493,7 +526,7 @@ def drawBoard(stdscr, game, boardX, boardY):
                 stdscr.addstr(y, x, "~", curses.color_pair(Colors.WATER))
             elif cell.subType == "wall":
                 stdscr.addstr(y, x, "-", curses.color_pair(Colors.WALL))
-            elif cell.mainType == "weapon":
+            elif cell.mainType == "weapons":
                 stdscr.addstr(y, x, "|", curses.color_pair(Colors.ITEMS))
             elif cell.mainType == "portal":
                 stdscr.addstr(y, x, "+", curses.color_pair(Colors.ITEMS))

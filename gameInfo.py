@@ -23,13 +23,35 @@ a-z monsters
 skill item (ie. glasses)
 """
 
+# Counts do not include any super special board items
+levelInfo = {
+    0: {
+        "boards": ["main", "farm"],
+        "itemCount": {
+            "weapons": 5,
+        }
+    }
+}
+
+# Required and random are exclusive lists
+randomLevelItems = {
+    0: {
+        "weapons": ["bow", "sword"],
+    }
+}
+
+# if only want one of a item, these lists are exclusive from random. Otherwise,
+# lists can share items
+requiredLevelItems = {
+    0: {
+        "weapons": ["sword"]
+    }
+}
 
 # Items required for a specific board
 requiredBoardItems = {
-    "main": {
-        "weapon": ["sword"],
-    },
     "farm": {
+        # "monsters": ["cow"]
     }
 }
 

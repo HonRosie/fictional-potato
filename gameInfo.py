@@ -50,7 +50,11 @@ requiredLevelItems = {
 
 # Items required for a specific board
 requiredBoardItems = {
+    "main": {
+        "portals": ["farm"]
+    },
     "farm": {
+        "portals": ["main"]
         # "monsters": ["cow"]
     }
 }

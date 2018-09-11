@@ -23,7 +23,7 @@ class Game:
         self.mode = Modes.PLAY
         self.hero = Hero()
         self.boards = {}
-        self.currBoardId = 0
+        self.currBoardId = "main"
         self.level = 0
         self.boardOriginX = None
         self.boardOriginY = None
@@ -38,11 +38,13 @@ class Game:
     def initLevel(self, level):
         global debugStr
         boardsToInit = levelInfo[level]["boards"]
-        boardList = []
+        levelBoardList = []
         for board in boardsToInit:
             board = Board(board)
+            if board.id in self.boards:
+                raise NameError("This board already exists!")
             self.boards[board.id] = board
-            boardList.append(board)
+            levelBoardList.append(board)
 
         for mainType, itemCount in levelInfo[level]["itemCount"].items():
             createdCount = 0
@@ -54,16 +56,16 @@ class Game:
                     raise NameError("Number of required items greater then items expected for this level")
                 for subType in requiredItems:
                     # Randomly pick a board
-                    randIndex = random.randrange(len(boardList))
-                    board = boardList[randIndex]
+                    randIndex = random.randrange(len(levelBoardList))
+                    board = levelBoardList[randIndex]
                     # Randomly generate position on that board
                     x, y = board.genRandomValidPos()
                     board.grid[y][x] = BoardItem(mainType, subType)
                     createdCount += 1
             for i in range(createdCount, itemCount):
                 # Randomly pick a board
-                randIndex = random.randrange(len(boardList))
-                board = boardList[randIndex]        
+                randIndex = random.randrange(len(levelBoardList))
+                board = levelBoardList[randIndex]        
                 # Randomly generate an item. There should always exist random level items for a mainType
                 possibleRandomItems = randomLevelItems[level][mainType]
                 randIndex = random.randrange(len(possibleRandomItems))
@@ -101,13 +103,15 @@ class Game:
 # Board/Items
 #################################
 class Board:
-    nextBoardId = 0
+    # nextBoardId = 0
     def __init__(self, boardName):
         global debugStr
-        self.id = self.nextBoardId
-        Board.nextBoardId += 1
-        self.boardName = boardName
+        # self.id = self.nextBoardId
+        # Board.nextBoardId += 1
+        self.id = boardName
         self.grid = []
+        self.heroLastX = 0
+        self.heroLastY = 0
 
         # Create terrain based off static map
         board = terrainDict[boardName].split("\n")
@@ -137,7 +141,7 @@ class Board:
 
     def genRandomValidPos(self):
         global debugStr
-        debugStr += self.boardName + ":" + str(self.width) + "," + str(self.height) + " | "
+        debugStr += self.id + ":" + str(self.width) + "," + str(self.height) + " | "
         while True:
             x = random.randrange(self.width)
             y = random.randrange(self.height)
@@ -254,12 +258,31 @@ class Hero:
                 return newX, newY
         return self.x, self.y
 
-    def move(self, board, action, newHero):
+    def move(self, game, action, newHero):
         global debugStr
+        board = game.boards[game.currBoardId]
         newX, newY = self.computeNewPos(board, action, False)
-        
+
+        if board.grid[newY][newX].mainType == "portals":
+            # Set hero's position on this board
+            board.heroLastX = newX
+            board.heroLastY = newY
+
+            # Set game board to new board
+            game.currBoardId = board.grid[newY][newX].subType
+
+            # Calculate hero's position on new board
+            newX, newY = self.computePosOnNewBoard(game, board)
+
         newHero.x = newX
         newHero.y = newY
+
+    def computePosOnNewBoard(self, game, oldBoard):
+        newBoard = game.boards[game.currBoardId]
+        for y, row in enumerate(newBoard.grid):
+            for x, cell in enumerate(row):
+                if newBoard.grid[y][x].mainType == "portals" and newBoard.grid[y][x].subType == oldBoard.id:
+                    return x, y
 
             
     def isBlocked(self, board, newX, newY):
@@ -408,7 +431,6 @@ class Hero:
     # Only applicable for edibles
     def eat(self, game, action, newHero):
         global debugStr
-        # eat
         if action == Actions.ENTER:
             selectedItem = self.inventory[self.selectedItemIdx] # BoardItem
             if selectedItem.mainType == "edible":
@@ -528,7 +550,7 @@ def drawBoard(stdscr, game, boardX, boardY):
                 stdscr.addstr(y, x, "-", curses.color_pair(Colors.WALL))
             elif cell.mainType == "weapons":
                 stdscr.addstr(y, x, "|", curses.color_pair(Colors.ITEMS))
-            elif cell.mainType == "portal":
+            elif cell.mainType == "portals":
                 stdscr.addstr(y, x, "+", curses.color_pair(Colors.ITEMS))
             # elif cell.subType == "mushroom":
             #     stdscr.addstr(y, x, "m", curses.color_pair(Colors.ITEMS))
@@ -660,9 +682,7 @@ def main(stdscr):
     global debugStr
     game = Game()
     game.initGame()
-    currBoard = game.boards[game.currBoardId]
     
-
     # Settings for nCurses
     curses.curs_set(False)
     initColors()
@@ -671,6 +691,7 @@ def main(stdscr):
     draw(stdscr, game)
     while True:
         hero = game.hero
+        currBoard = game.boards[game.currBoardId]
         key = stdscr.getch()
         if key in ActionMap:
             action = ActionMap[key]
@@ -681,9 +702,9 @@ def main(stdscr):
             newHero = copy.deepcopy(game.hero)
             if game.mode == Modes.PLAY:
                 game.changeModeFromPlay(action, newHero)
-                hero.move(currBoard, action, newHero)
+                hero.move(game, action, newHero)
                 # Hero should pick up items regardless of what action is being taken
-                hero.pickup(currBoard,action, newHero)
+                hero.pickup(currBoard, action, newHero)
                 hero.combat(game, currBoard, action, newHero)
             elif game.mode == Modes.INVENTORY:
                 game.changeModeFromInventory(action, newHero)

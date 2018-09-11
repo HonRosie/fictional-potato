@@ -23,40 +23,39 @@ a-z monsters
 skill item (ie. glasses)
 """
 
-# Counts do not include any super special board items
 levelInfo = {
     0: {
-        "boards": ["main", "farm"],
-        "itemCount": {
-            "weapons": 5,
-        }
+        "height": (20, 30),
+        "width": (50, 70),
+        # Items with multiple possible subtypes
+        "itemCounts": {
+            "weapons": (1, 3),
+            "monsters": (2, 3),
+        },
+        "portals": (1, 2),
     }
 }
 
-# Required and random are exclusive lists
 randomLevelItems = {
     0: {
         "weapons": ["bow", "sword"],
+        "monsters": ["orc", "uruk-hai"]
+    },
+    1: {
+        # "monsters": ["cow", "uruk-hai"]
     }
 }
 
 # if only want one of a item, these lists are exclusive from random. Otherwise,
 # lists can share items
-requiredLevelItems = {
-    0: {
-        "weapons": ["sword"]
-    }
-}
+# requiredLevelItems = {
+#     0: {
+#         "weapons": ["sword"]
+#     },
+#     1: {
+#         "cow":
+#     }
+# }
 
-# Items required for a specific board
-requiredBoardItems = {
-    "main": {
-        "portals": ["farm"]
-    },
-    "farm": {
-        "portals": ["main"]
-        # "monsters": ["cow"]
-    }
-}
 
 # Should regenerate board everytime leave board? So if you don't pick up an item, it may disappear forever?

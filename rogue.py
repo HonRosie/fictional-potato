@@ -2,7 +2,7 @@ import copy
 import curses
 import random
 from terrain import terrainDict
-from gameInfo import requiredBoardItems, levelInfo, requiredLevelItems, randomLevelItems
+from gameInfo import levelInfo, randomLevelItems
 from curses import wrapper
 from enum import Enum, IntEnum
 
@@ -23,7 +23,7 @@ class Game:
         self.mode = Modes.PLAY
         self.hero = Hero()
         self.boards = {}
-        self.currBoardId = "main"
+        self.currBoardId = 0
         self.level = 0
         self.boardOriginX = None
         self.boardOriginY = None
@@ -32,48 +32,8 @@ class Game:
 
     def initGame(self):
         global debugStr
-        # Initialize all boards.
-        self.initLevel(self.level)
-
-    def initLevel(self, level):
-        global debugStr
-        boardsToInit = levelInfo[level]["boards"]
-        levelBoardList = []
-        for board in boardsToInit:
-            board = Board(board)
-            if board.id in self.boards:
-                raise NameError("This board already exists!")
-            self.boards[board.id] = board
-            levelBoardList.append(board)
-
-        for mainType, itemCount in levelInfo[level]["itemCount"].items():
-            createdCount = 0
-            # Many not have required items for this level
-            if level in requiredLevelItems:
-                # May not have required level items for this mainType
-                requiredItems = requiredLevelItems[level].get(mainType, [])
-                if itemCount < len(requiredItems):
-                    raise NameError("Number of required items greater then items expected for this level")
-                for subType in requiredItems:
-                    # Randomly pick a board
-                    randIndex = random.randrange(len(levelBoardList))
-                    board = levelBoardList[randIndex]
-                    # Randomly generate position on that board
-                    x, y = board.genRandomValidPos()
-                    board.grid[y][x] = BoardItem(mainType, subType)
-                    createdCount += 1
-            for i in range(createdCount, itemCount):
-                # Randomly pick a board
-                randIndex = random.randrange(len(levelBoardList))
-                board = levelBoardList[randIndex]        
-                # Randomly generate an item. There should always exist random level items for a mainType
-                possibleRandomItems = randomLevelItems[level][mainType]
-                randIndex = random.randrange(len(possibleRandomItems))
-                randomSubType = possibleRandomItems[randIndex]
-                # Randomly generate position on that board
-                x, y = board.genRandomValidPos()
-                board.grid[y][x] = BoardItem(mainType, randomSubType)
-
+        board = Board(self.level)
+        self.boards[board.id] = board
 
     def changeModeFromPlay(self, action, newHero):
         global debugStr
@@ -102,50 +62,66 @@ class Game:
 #################################
 # Board/Items
 #################################
+
+
 class Board:
-    # nextBoardId = 0
-    def __init__(self, boardName):
+    nextBoardId = 0
+    def __init__(self, level, requiredItems=[]):
         global debugStr
-        # self.id = self.nextBoardId
-        # Board.nextBoardId += 1
-        self.id = boardName
+        self.id = self.nextBoardId
+        Board.nextBoardId += 1
         self.grid = []
-        self.heroLastX = 0
-        self.heroLastY = 0
 
-        # Create terrain based off static map
-        board = terrainDict[boardName].split("\n")
-        for row in board:
+        levelParams = levelInfo[level]
+
+        # set size of board
+        minHeight, maxHeight = levelParams["height"]
+        self.height = random.randint(minHeight, maxHeight)
+        minWidth, maxWidth = levelParams["width"]
+        self.width = random.randint(minWidth, maxWidth)
+
+        # generate terrain (just grass for now) of above size
+        for i in range(0, self.height):
             newRow = []
-            for cell in row:
-                if cell == "~":
-                    newRow.append(BoardItem("terrain", "water"))
-                elif cell == "-":
-                    newRow.append(BoardItem("terrain", "wall"))
-                else:
-                    newRow.append(BoardItem("terrain", "grass"))
+            for j in range(0, self.width):
+                newRow.append(BoardItem("terrain", "grass"))
             self.grid.append(newRow)
-        
-        self.height = len(self.grid)
-        self.width = len(self.grid[0])
 
-        # Create required items
-        requiredItems = requiredBoardItems.get(boardName, {})
-        for mainType, itemList in requiredItems.items():
-            for subType in itemList:
-                # Randomly generate position
-                debugStr += "board"
-                x, y = self.genRandomValidPos()
+        # Generate open-ended portals
+        minPortal, maxPortal = levelParams["portals"]
+        portalCount = random.randint(minPortal, maxPortal)
+        for i in range(portalCount):
+            x, y = self.getRandomValidPos()
+            self.grid[y][x] = BoardItem("portals", None)
+
+        # Place required items
+        for item in requiredItems:
+            x, y = self.getRandomValidPos()
+            self.grid[y][x] = item
+
+        # Generate items items with multiple possible subtypes
+        itemCounts = levelParams["itemCounts"]
+        for mainType in itemCounts:
+            # random pick how many of of that item
+            minCount, maxCount = itemCounts[mainType]
+            count = random.randint(minCount, maxCount)
+            for i in range(count):
+                # randomly pick a subtype
+                randomItems = randomLevelItems[level][mainType]
+                randIndex = random.randrange(len(randomItems))
+                subType = randomItems[randIndex]
+                # random pick location
+                x, y = self.getRandomValidPos()
+                # replace terrain with item
                 self.grid[y][x] = BoardItem(mainType, subType)
 
-
-    def genRandomValidPos(self):
+    def getRandomValidPos(self):
         global debugStr
-        debugStr += self.id + ":" + str(self.width) + "," + str(self.height) + " | "
         while True:
             x = random.randrange(self.width)
             y = random.randrange(self.height)
             if self.grid[y][x].subType == "grass":
+                debugStr += str(self.id) + ":" + str(x) + "," + str(y) + " | "
                 return x, y
 
 
@@ -204,7 +180,9 @@ gameItemDefns = {
     "mushroom": ItemDefinition(mods=["stealth"]),
     # monster
     "uruk-hai": ItemDefinition(dmg=12, defense=3, health=30),
-    "orc": ItemDefinition(dmg=8, defense=3, health=20)
+    "orc": ItemDefinition(dmg=8, defense=3, health=20),
+    "goblin": ItemDefinition(dmg=3, defense=1, health=10),
+    "cow": ItemDefinition(dmg=1, inventory=[])
 }
 
 maxItemsPerPos = {
@@ -263,25 +241,36 @@ class Hero:
         board = game.boards[game.currBoardId]
         newX, newY = self.computeNewPos(board, action, False)
 
-        if board.grid[newY][newX].mainType == "portals":
-            # Set hero's position on this board
-            board.heroLastX = newX
-            board.heroLastY = newY
+        # If standing on portal, update hero position to be within new board
+        currGridSpace = board.grid[newY][newX]
+        if currGridSpace.mainType == "portals":
+            # Brand new portal!
+            if currGridSpace.subType == None:
+                # generate new board
+                destinationBoard = Board(game.level, [BoardItem("portals", game.currBoardId)])
+                game.boards[destinationBoard.id] = destinationBoard
 
-            # Set game board to new board
-            game.currBoardId = board.grid[newY][newX].subType
+                # update curr board's portal with id of new board
+                currGridSpace.subType = destinationBoard.id
+            else:
+                destinationBoardId = currGridSpace.subType
+                destinationBoard = game.boards[destinationBoardId]
 
-            # Calculate hero's position on new board
-            newX, newY = self.computePosOnNewBoard(game, board)
+            # Calculate hero's position on destination board
+            newX, newY = self.computePosOnDestinationBoard(board, destinationBoard)
 
+            # Set game board to destination board
+            game.currBoardId = destinationBoard.id
+
+        # set hero's new position
         newHero.x = newX
         newHero.y = newY
 
-    def computePosOnNewBoard(self, game, oldBoard):
-        newBoard = game.boards[game.currBoardId]
-        for y, row in enumerate(newBoard.grid):
+    def computePosOnDestinationBoard(self, oldBoard, destinationBoard):
+        destinationGrid = destinationBoard.grid
+        for y, row in enumerate(destinationBoard.grid):
             for x, cell in enumerate(row):
-                if newBoard.grid[y][x].mainType == "portals" and newBoard.grid[y][x].subType == oldBoard.id:
+                if destinationGrid[y][x].mainType == "portals" and destinationGrid[y][x].subType == oldBoard.id:
                     return x, y
 
             
@@ -554,8 +543,10 @@ def drawBoard(stdscr, game, boardX, boardY):
                 stdscr.addstr(y, x, "+", curses.color_pair(Colors.ITEMS))
             # elif cell.subType == "mushroom":
             #     stdscr.addstr(y, x, "m", curses.color_pair(Colors.ITEMS))
-            # elif cell.subType == "orc":
-            #     stdscr.addstr(y, x, "o", curses.color_pair(Colors.ITEMS))
+            elif cell.subType == "orc":
+                stdscr.addstr(y, x, "o", curses.color_pair(Colors.ITEMS))
+            elif cell.subType == "uruk-hai":
+                stdscr.addstr(y, x, "u", curses.color_pair(Colors.ITEMS))
             # elif cell.subType == "basic armour":
             #     stdscr.addstr(y, x, "@", curses.color_pair(Colors.ITEMS))
             else:

@@ -2,7 +2,7 @@ import copy
 import curses
 import random
 from terrain import terrainDict
-from gameInfo import levelInfo, randomLevelItems
+from gameInfo import levelInfo, randomLevelItems, requiredLevelItems
 from curses import wrapper
 from enum import Enum, IntEnum
 
@@ -32,7 +32,7 @@ class Game:
 
     def initGame(self):
         global debugStr
-        board = Board(self.level)
+        board = Board(self.level, self.hero)
         self.boards[board.id] = board
 
     def changeModeFromPlay(self, action, newHero):
@@ -66,7 +66,7 @@ class Game:
 
 class Board:
     nextBoardId = 0
-    def __init__(self, level, requiredItems=[]):
+    def __init__(self, level, hero, requiredItems=[]):
         global debugStr
         self.id = self.nextBoardId
         Board.nextBoardId += 1
@@ -115,13 +115,35 @@ class Board:
                 # replace terrain with item
                 self.grid[y][x] = BoardItem(mainType, subType)
 
+        # Potentially draw stairs. 0% before required item in inventory, 30% after
+        # 50% stairs up, 50% stairs down
+        haveAllRequired = True
+        for item in requiredLevelItems[level]:
+            isMatch = False
+            for inventoryItem in hero.inventory:
+                if inventoryItem.subType == item:
+                    isMatch = True
+            if isMatch == False:
+                haveAllRequired = False
+                break
+        if haveAllRequired == True:
+            randomNum = random.randrange(100)
+            debugStr += "some stiars"
+            if randomNum < 70:
+                debugStr += "yes stairs"
+                stairType = random.choices(["stairsUp", "stairsDown"], weights=[0.5, 0.5], k=1)
+                x, y = self.getRandomValidPos()
+                self.grid[y][x] = BoardItem(stairType[0], None)
+                debugStr += str(x) + "," + str(y) + ": " + self.grid[y][x].mainType + " | "
+
+
     def getRandomValidPos(self):
         global debugStr
         while True:
             x = random.randrange(self.width)
             y = random.randrange(self.height)
             if self.grid[y][x].subType == "grass":
-                debugStr += str(self.id) + ":" + str(x) + "," + str(y) + " | "
+                # debugStr += str(self.id) + ":" + str(x) + "," + str(y) + " | "
                 return x, y
 
 
@@ -247,7 +269,7 @@ class Hero:
             # Brand new portal!
             if currGridSpace.subType == None:
                 # generate new board
-                destinationBoard = Board(game.level, [BoardItem("portals", game.currBoardId)])
+                destinationBoard = Board(game.level, game.hero, [BoardItem("portals", game.currBoardId)])
                 game.boards[destinationBoard.id] = destinationBoard
 
                 # update curr board's portal with id of new board
@@ -261,6 +283,21 @@ class Hero:
 
             # Set game board to destination board
             game.currBoardId = destinationBoard.id
+
+        # If standing on stairs, increment level and update hero position on new board
+        if currGridSpace.mainType == "stairsUp" or currGridSpace.mainType == "stairsDown":
+            if currGridSpace.mainType == "stairsUp":
+                game.level += 1
+            else:
+                game.level -= 1
+            # First time using stairs!
+            if currGridSpace.subType == None:
+                # generate new board
+                destinationBoard = Board(game.level, [BoardItem("portals", game.currBoardId)])
+                game.boards[destinationBoard.id] = destinationBoard
+
+                # update curr board's portal with id of new board
+                currGridSpace.subType = destinationBoard.id
 
         # set hero's new position
         newHero.x = newX
@@ -541,6 +578,10 @@ def drawBoard(stdscr, game, boardX, boardY):
                 stdscr.addstr(y, x, "|", curses.color_pair(Colors.ITEMS))
             elif cell.mainType == "portals":
                 stdscr.addstr(y, x, "+", curses.color_pair(Colors.ITEMS))
+            elif cell.mainType == "stairsUp":
+                stdscr.addstr(y, x, "<", curses.color_pair(Colors.ITEMS))
+            elif cell.mainType == "stairsDown":
+                stdscr.addstr(y, x, ">", curses.color_pair(Colors.ITEMS))
             # elif cell.subType == "mushroom":
             #     stdscr.addstr(y, x, "m", curses.color_pair(Colors.ITEMS))
             elif cell.subType == "orc":

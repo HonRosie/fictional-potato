@@ -5,6 +5,8 @@ from terrain import terrainDict
 from gameInfo import levelInfo, randomLevelItems, requiredLevelItems
 from curses import wrapper
 from enum import Enum, IntEnum
+from items import BoardItem
+from randomPlaceIrregular import generateLevel
 
 
 debugStr = ""
@@ -21,7 +23,7 @@ class Modes(Enum):
 class Game:
     def __init__(self):
         self.mode = Modes.PLAY
-        self.hero = Hero()
+        # self.hero = Hero()
         self.boards = {}
         self.currBoardId = 0
         self.level = 0
@@ -30,10 +32,12 @@ class Game:
         self.messages = []
         self.isGameOver = False
 
-    def initGame(self):
+    def initGame(self, stdscr):
         global debugStr
-        board = Board(self.level, self.hero)
+        # board = Board(self.level, self.hero)
+        board = Board(stdscr, self.level)
         self.boards[board.id] = board
+        self.hero = Hero(board)
 
     def changeModeFromPlay(self, action, newHero):
         global debugStr
@@ -62,79 +66,16 @@ class Game:
 #################################
 # Board/Items
 #################################
-
-
 class Board:
     nextBoardId = 0
-    def __init__(self, level, hero, requiredItems=[]):
+    def __init__(self, stdscr, level):
         global debugStr
         self.id = self.nextBoardId
         Board.nextBoardId += 1
-        self.grid = []
-
-        levelParams = levelInfo[level]
-
-        # set size of board
-        minHeight, maxHeight = levelParams["height"]
-        self.height = random.randint(minHeight, maxHeight)
-        minWidth, maxWidth = levelParams["width"]
-        self.width = random.randint(minWidth, maxWidth)
-
-        # generate terrain (just grass for now) of above size
-        for i in range(0, self.height):
-            newRow = []
-            for j in range(0, self.width):
-                newRow.append(BoardItem("terrain", "grass"))
-            self.grid.append(newRow)
-
-        # Generate open-ended portals
-        minPortal, maxPortal = levelParams["portals"]
-        portalCount = random.randint(minPortal, maxPortal)
-        for i in range(portalCount):
-            x, y = self.getRandomValidPos()
-            self.grid[y][x] = BoardItem("portals", None)
-
-        # Place required items
-        for item in requiredItems:
-            x, y = self.getRandomValidPos()
-            self.grid[y][x] = item
-
-        # Generate items items with multiple possible subtypes
-        itemCounts = levelParams["itemCounts"]
-        for mainType in itemCounts:
-            # random pick how many of of that item
-            minCount, maxCount = itemCounts[mainType]
-            count = random.randint(minCount, maxCount)
-            for i in range(count):
-                # randomly pick a subtype
-                randomItems = randomLevelItems[level][mainType]
-                randIndex = random.randrange(len(randomItems))
-                subType = randomItems[randIndex]
-                # random pick location
-                x, y = self.getRandomValidPos()
-                # replace terrain with item
-                self.grid[y][x] = BoardItem(mainType, subType)
-
-        # Potentially draw stairs. 0% before required item in inventory, 30% after
-        # 50% stairs up, 50% stairs down
-        haveAllRequired = True
-        for item in requiredLevelItems[level]:
-            isMatch = False
-            for inventoryItem in hero.inventory:
-                if inventoryItem.subType == item:
-                    isMatch = True
-            if isMatch == False:
-                haveAllRequired = False
-                break
-        if haveAllRequired == True:
-            randomNum = random.randrange(100)
-            debugStr += "some stiars"
-            if randomNum < 70:
-                debugStr += "yes stairs"
-                stairType = random.choices(["stairsUp", "stairsDown"], weights=[0.5, 0.5], k=1)
-                x, y = self.getRandomValidPos()
-                self.grid[y][x] = BoardItem(stairType[0], None)
-                debugStr += str(x) + "," + str(y) + ": " + self.grid[y][x].mainType + " | "
+        grid, roomList = generateLevel(stdscr)
+        self.grid = grid
+        self.height = len(self.grid)
+        self.width = len(self.grid[0])
 
 
     def getRandomValidPos(self):
@@ -147,6 +88,7 @@ class Board:
                 return x, y
 
 
+
 gameMonsterInstances = {}
 def createMonsterInstance(monster):
     monsterDefn = gameItemDefns[monster]
@@ -155,14 +97,6 @@ def createMonsterInstance(monster):
         "health": monsterDefn.health,
         "dmg": monsterDefn.dmg
     }
-
-class BoardItem:
-    boardItemNextId = 0
-    def __init__(self, mainType, subType):
-        self.id = self.boardItemNextId
-        BoardItem.boardItemNextId += 1
-        self.mainType = mainType
-        self.subType = subType
 
 class ItemDefinition:
     def __init__(self, equipPos=None, dmg=0, defense=0, stealth=0, healing=0, mods=[], health=0, inventory=[], info=None):
@@ -218,12 +152,12 @@ maxItemsPerPos = {
 #################################
 # Board
 #################################
-
-
 class Hero:
-    def __init__(self):
-        self.x = 0
-        self.y = 0
+    def __init__(self, board):
+        midX = int(board.width/2)
+        midY = int(board.height/2)
+        self.x = midX
+        self.y = midY
         self.mods = set()
         self.health = 100
         self.equipMap = {
@@ -570,10 +504,14 @@ def drawBoard(stdscr, game, boardX, boardY):
         for i, cell in enumerate(row):
             x = boardX + i
             y = boardY + j
-            if cell.subType == "water":
-                stdscr.addstr(y, x, "~", curses.color_pair(Colors.WATER))
+            if cell.subType == "background":
+                stdscr.addstr(y, x, "", curses.color_pair(Colors.WATER))
+            elif cell.subType == "unlocked":
+                stdscr.addstr(y, x, "+", curses.color_pair(Colors.WATER))
             elif cell.subType == "wall":
-                stdscr.addstr(y, x, "-", curses.color_pair(Colors.WALL))
+                stdscr.addstr(y, x, "#", curses.color_pair(Colors.WALL))
+            elif cell.subType == "water":
+                stdscr.addstr(y, x, "~", curses.color_pair(Colors.WATER))
             elif cell.mainType == "weapons":
                 stdscr.addstr(y, x, "|", curses.color_pair(Colors.ITEMS))
             elif cell.mainType == "portals":
@@ -635,6 +573,7 @@ def drawCookMode(stdscr, game):
 
 
 def drawPlayMode(stdscr, game, maxY, maxX):
+    global debugStr
     boardX = game.boardOriginX
     boardY = game.boardOriginY
     drawBoard(stdscr, game, boardX, boardY)
@@ -713,15 +652,15 @@ ActionMap = {
 def main(stdscr):
     global debugStr
     game = Game()
-    game.initGame()
+    game.initGame(stdscr)
     
     # Settings for nCurses
     curses.curs_set(False)
     initColors()
 
     # Game loop
-    draw(stdscr, game)
     while True:
+        draw(stdscr, game)
         hero = game.hero
         currBoard = game.boards[game.currBoardId]
         key = stdscr.getch()
@@ -748,7 +687,7 @@ def main(stdscr):
                 game.changeModeFromCook(action, newHero)
                 hero.cook(action, newHero)
             game.hero = newHero
-            draw(stdscr, game)
+            # draw(stdscr, game)
 
 
 

@@ -25,9 +25,6 @@ skill item (ie. glasses)
 
 levelInfo = {
     0: {
-        "height": (10, 20),
-        "width": (30, 50),
-        # Items with multiple possible subtypes
         "itemCounts": {
             "weapons": (1, 2),
             "monsters": (2, 3),
@@ -39,7 +36,7 @@ levelInfo = {
 randomLevelItems = {
     0: {
         "weapons": ["bow", "sword"],
-        "weaponWeight": [0.45, 0.45, 0.1],
+        "weaponWeight": [0.45, 0.45],
         "monsters": ["orc", "uruk-hai"],
         "monsterWeight": [0.5, 0.5]
     },

@@ -1,6 +1,7 @@
 import copy
 import curses
 import random
+import time
 from terrain import terrainDict
 from gameInfo import levelInfo, randomLevelItems, requiredLevelItems
 from curses import wrapper
@@ -21,7 +22,8 @@ class Modes(Enum):
 
 
 class Game:
-    def __init__(self):
+    def __init__(self, stdscr, seed):
+        global debugStr
         self.mode = Modes.PLAY
         # self.hero = Hero()
         self.boards = {}
@@ -32,10 +34,8 @@ class Game:
         self.messages = []
         self.isGameOver = False
 
-    def initGame(self, stdscr):
-        global debugStr
         # board = Board(self.level, self.hero)
-        board = Board(stdscr, self.level)
+        board = Board(stdscr, self.level, seed)
         self.boards[board.id] = board
         self.hero = Hero(board)
 
@@ -68,11 +68,11 @@ class Game:
 #################################
 class Board:
     nextBoardId = 0
-    def __init__(self, stdscr, level):
+    def __init__(self, stdscr, level, seed):
         global debugStr
         self.id = self.nextBoardId
         Board.nextBoardId += 1
-        grid, roomList = generateLevel(stdscr)
+        grid, roomList = generateLevel(stdscr, seed)
         self.grid = grid
         self.height = len(self.grid)
         self.width = len(self.grid[0])
@@ -616,7 +616,7 @@ def draw(stdscr, game):
         drawPlayMode(stdscr, game, maxY, maxX)
     
     # Draw debug panel
-    stdscr.addstr(45, 0, debugStr)
+    stdscr.addstr(53, 0, debugStr)
 
     # Paint 
     stdscr.refresh()
@@ -651,12 +651,17 @@ ActionMap = {
 
 def main(stdscr):
     global debugStr
-    game = Game()
-    game.initGame(stdscr)
-    
     # Settings for nCurses
     curses.curs_set(False)
     initColors()
+
+    # init random seed
+    # seed = 1540848208.0574741
+    seed = time.time()
+    random.seed(seed)
+    debugStr += str(seed)
+
+    game = Game(stdscr, seed)
 
     # Game loop
     while True:

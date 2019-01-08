@@ -1,6 +1,7 @@
 import copy
 import curses
 import random
+import time
 from enum import Enum, IntEnum
 from items import BoardItem
 
@@ -22,8 +23,11 @@ flipDirectionDict = {
     Direction.RIGHT: Direction.LEFT,    
 }
 
-def generateLevel(stdscr):
+def generateLevel(stdscr, seed):
     global debugStr
+    # init random number generator
+    random.seed(seed)
+
     numRooms = 19
     grid = []
     roomList = []
@@ -538,6 +542,13 @@ def main(stdscr):
     # Settings for nCurses
     curses.curs_set(False)
     initColors()
+
+    # init random seed
+    # seed = time.time()
+    seed = 1540846192.793206
+    random.seed(seed)
+
+    debugStr += str(seed)
 
     # grid, newGrid = generateLevel(stdscr)
     grid, _ = generateLevel(stdscr)

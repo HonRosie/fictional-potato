@@ -25,17 +25,15 @@ class Game:
     def __init__(self, stdscr, seed):
         global debugStr
         self.mode = Modes.PLAY
-        # self.hero = Hero()
         self.boards = {}
-        self.currBoardId = 0
-        self.level = 0
+        # top left corner of the board
         self.boardOriginX = None
         self.boardOriginY = None
         self.messages = []
         self.isGameOver = False
 
-        # board = Board(self.level, self.hero)
-        board = Board(stdscr, self.level, seed)
+        board = Board(stdscr, seed)
+        self.currBoardId = board.id
         self.boards[board.id] = board
         self.hero = Hero(board)
 
@@ -68,7 +66,7 @@ class Game:
 #################################
 class Board:
     nextBoardId = 0
-    def __init__(self, stdscr, level, seed):
+    def __init__(self, stdscr, seed):
         global debugStr
         self.id = self.nextBoardId
         Board.nextBoardId += 1
@@ -76,7 +74,6 @@ class Board:
         self.grid = grid
         self.height = len(self.grid)
         self.width = len(self.grid[0])
-
 
     def getRandomValidPos(self):
         global debugStr
@@ -88,15 +85,6 @@ class Board:
                 return x, y
 
 
-
-gameMonsterInstances = {}
-def createMonsterInstance(monster):
-    monsterDefn = gameItemDefns[monster]
-    return {
-        "defense": monsterDefn.defense,
-        "health": monsterDefn.health,
-        "dmg": monsterDefn.dmg
-    }
 
 class ItemDefinition:
     def __init__(self, equipPos=None, dmg=0, defense=0, stealth=0, healing=0, mods=[], health=0, inventory=[], info=None):
@@ -134,11 +122,6 @@ gameItemDefns = {
     "basic armour": ItemDefinition(defense=2, equipPos="body"),
     # edible
     "mushroom": ItemDefinition(mods=["stealth"]),
-    # monster
-    "uruk-hai": ItemDefinition(dmg=12, defense=3, health=30),
-    "orc": ItemDefinition(dmg=8, defense=3, health=20),
-    "goblin": ItemDefinition(dmg=3, defense=1, health=10),
-    "cow": ItemDefinition(dmg=1, inventory=[])
 }
 
 maxItemsPerPos = {
@@ -150,7 +133,7 @@ maxItemsPerPos = {
 }
 
 #################################
-# Board
+# Hero
 #################################
 class Hero:
     def __init__(self, board):
@@ -173,7 +156,9 @@ class Hero:
         self.selectedItemIdx = 0
         self.shouldRemoveSelectedItem = False
 
-
+    ########################
+    # Hero movement
+    ########################
     def computeNewPos(self, board, action, ignoreObstacles):
         global debugStr
         newX, newY = self.x, self.y
@@ -197,42 +182,30 @@ class Hero:
         board = game.boards[game.currBoardId]
         newX, newY = self.computeNewPos(board, action, False)
 
-        # If standing on portal, update hero position to be within new board
-        currGridSpace = board.grid[newY][newX]
-        if currGridSpace.mainType == "portals":
-            # Brand new portal!
-            if currGridSpace.subType == None:
-                # generate new board
-                destinationBoard = Board(game.level, game.hero, [BoardItem("portals", game.currBoardId)])
-                game.boards[destinationBoard.id] = destinationBoard
-
-                # update curr board's portal with id of new board
-                currGridSpace.subType = destinationBoard.id
-            else:
-                destinationBoardId = currGridSpace.subType
-                destinationBoard = game.boards[destinationBoardId]
-
-            # Calculate hero's position on destination board
-            newX, newY = self.computePosOnDestinationBoard(board, destinationBoard)
-
-            # Set game board to destination board
-            game.currBoardId = destinationBoard.id
-
+        # TODO Fix stairs ###############################################
+        # shouldn's need level. Using boardId should suffice as level
         # If standing on stairs, increment level and update hero position on new board
-        if currGridSpace.mainType == "stairsUp" or currGridSpace.mainType == "stairsDown":
-            if currGridSpace.mainType == "stairsUp":
-                game.level += 1
-            else:
-                game.level -= 1
-            # First time using stairs!
-            if currGridSpace.subType == None:
-                # generate new board
-                destinationBoard = Board(game.level, [BoardItem("portals", game.currBoardId)])
-                game.boards[destinationBoard.id] = destinationBoard
+        # if currGridSpace.mainType == "stairsUp" or currGridSpace.mainType == "stairsDown":
+        #     if currGridSpace.mainType == "stairsUp":
+        #         game.level += 1
+        #     else:
+        #         game.level -= 1
+        #     # First time using stairs!
+        #     if currGridSpace.subType == None:
+        #         # generate new board
+        #         destinationBoard = Board(game.level, [BoardItem("portals", game.currBoardId)])
+        #         game.boards[destinationBoard.id] = destinationBoard
 
-                # update curr board's portal with id of new board
-                currGridSpace.subType = destinationBoard.id
+        #         # update curr board's portal with id of new board
+        #         currGridSpace.subType = destinationBoard.id
 
+        #     # Calculate hero's position on destination board
+        #     newX, newY = self.computePosOnDestinationBoard(board, destinationBoard)
+
+        #     # Set game board to destination board
+        #     game.currBoardId = destinationBoard.id
+
+        ########################################################
         # set hero's new position
         newHero.x = newX
         newHero.y = newY
@@ -262,6 +235,9 @@ class Hero:
         # Default to not blocked
         return False
 
+    ########################
+    # Pickup item
+    ########################
     def pickup(self, board, action, newHero):
         global debugStr
         newX, newY = self.computeNewPos(board, action, False)
@@ -272,48 +248,10 @@ class Hero:
             newHero.inventory.append(boardItem)
             board.grid[newY][newX] = BoardItem("terrain", "grass")
 
-    def combat(self, game, board, action, newHero):
-        global debugStr
 
-        newX, newY = self.computeNewPos(board, action, True)
-        boardItem = board.grid[newY][newX]
-
-        if boardItem.mainType == "monster":
-
-            # Calculate dmg of monster
-            monster = gameMonsterInstances[boardItem.id]
-            
-            # Calculate dmg of hero
-            heroDmg, heroDefense = 0, 0
-            for pos, itemList in self.equipMap.items():
-                for item in itemList:
-                    itemDefn = gameItemDefns[item.subType]
-                    heroDmg += itemDefn.dmg
-                    heroDefense += itemDefn.defense
-
-            # inflict dmg
-            heroFinalDmg = heroDmg * (1 - monster["defense"]/100)
-            monsterFinalDmg = monster["dmg"] * (1 - heroDefense/100)
-
-            newHero.health -= monsterFinalDmg
-            monster["health"] -= heroFinalDmg
-
-            if monster["health"] <= 0:
-                message = f"Successfully beat {boardItem.subType}!!"
-                game.messages.append(message)
-                board.grid[newY][newX] = BoardItem("terrain", "grass")
-            
-            if newHero.health <= 0:
-                newHero.health = 0
-                game.messages.append("Game over!")
-                game.isGameOver = True
-
-
-    def chanceOfDmg(self, defense):
-        randomNum = random.randrange(100)
-        return randomNum > defense
-
-
+    ########################
+    # Inventory selection
+    ########################
     def moveSelection(self, itemList, action, newHero):
         global debugStr
         # Move selection down/up
@@ -330,7 +268,9 @@ class Hero:
         if self.selectedItemIdx > 0:
             newHero.selectedItemIdx -= 1
 
-
+    ########################
+    # Cook TODO Make this work again
+    ########################
     def cook(self, action, newHero):
         global debugStr
         # Pick which list to arrow through
@@ -380,14 +320,15 @@ class Hero:
                 gameItemDefns[cookedItem.subType] = ItemDefinition(healing=healing, dmg=dmg, mods=mods)
                 newHero.pot = []
                 debugStr += " Create new item to add to inventory"
-                
     
     def addUncookedItemsBack(self):
         for item in self.pot:
             self.inventory.append(item)
         self.pot = []
 
-
+    ########################
+    # Eating
+    ########################
     # Only applicable for edibles
     def eat(self, game, action, newHero):
         global debugStr
@@ -404,7 +345,9 @@ class Hero:
                     newHero.mods.add(mod)
                 self.removeSelectedItem(newHero.inventory, newHero)
                 
-            
+    ########################
+    # Equip
+    ########################  
     # Equip hero with weapon or armour
     def equip(self, game, action, newHero):
         global debugStr
@@ -505,7 +448,7 @@ def drawBoard(stdscr, game, boardX, boardY):
             x = boardX + i
             y = boardY + j
             if cell.subType == "background":
-                stdscr.addstr(y, x, "", curses.color_pair(Colors.WATER))
+                stdscr.addstr(y, x, "k", curses.color_pair(Colors.WATER))
             elif cell.subType == "unlocked":
                 stdscr.addstr(y, x, "+", curses.color_pair(Colors.WATER))
             elif cell.subType == "wall":
@@ -514,20 +457,12 @@ def drawBoard(stdscr, game, boardX, boardY):
                 stdscr.addstr(y, x, "~", curses.color_pair(Colors.WATER))
             elif cell.mainType == "weapons":
                 stdscr.addstr(y, x, "|", curses.color_pair(Colors.ITEMS))
-            elif cell.mainType == "portals":
-                stdscr.addstr(y, x, "+", curses.color_pair(Colors.ITEMS))
             elif cell.mainType == "stairsUp":
                 stdscr.addstr(y, x, "<", curses.color_pair(Colors.ITEMS))
             elif cell.mainType == "stairsDown":
                 stdscr.addstr(y, x, ">", curses.color_pair(Colors.ITEMS))
             # elif cell.subType == "mushroom":
             #     stdscr.addstr(y, x, "m", curses.color_pair(Colors.ITEMS))
-            elif cell.subType == "orc":
-                stdscr.addstr(y, x, "o", curses.color_pair(Colors.ITEMS))
-            elif cell.subType == "uruk-hai":
-                stdscr.addstr(y, x, "u", curses.color_pair(Colors.ITEMS))
-            # elif cell.subType == "basic armour":
-            #     stdscr.addstr(y, x, "@", curses.color_pair(Colors.ITEMS))
             else:
                 stdscr.addstr(y, x, ".", curses.color_pair(Colors.GRASS))
 
@@ -634,7 +569,6 @@ class Actions(Enum):
     ENTER = 7
     COOK = 8
     QUIT = 9
-    
 
 ActionMap = {
     curses.KEY_DOWN: Actions.DOWN,
@@ -647,8 +581,6 @@ ActionMap = {
     ord("q"): Actions.QUIT
 }
 
-
-
 def main(stdscr):
     global debugStr
     # Settings for nCurses
@@ -656,7 +588,7 @@ def main(stdscr):
     initColors()
 
     # init random seed
-    # seed = 1540848208.0574741
+    # seed = 1556856619.67617421
     seed = time.time()
     random.seed(seed)
     debugStr += str(seed)
@@ -681,7 +613,7 @@ def main(stdscr):
                 hero.move(game, action, newHero)
                 # Hero should pick up items regardless of what action is being taken
                 hero.pickup(currBoard, action, newHero)
-                hero.combat(game, currBoard, action, newHero)
+                # hero.combat(game, currBoard, action, newHero)
             elif game.mode == Modes.INVENTORY:
                 game.changeModeFromInventory(action, newHero)
                 hero.moveSelection(game.hero.inventory, action, newHero)

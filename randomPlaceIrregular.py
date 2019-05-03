@@ -41,7 +41,7 @@ def generateLevel(stdscr, seed):
     # init first room
     prevRoom = ComplexRoom()
     # debugStr += str(prevRoom.height) + "," + str(prevRoom.width)
-    middleX, middleY = getTopLeftOfMiddleRoom(stdscr, prevRoom)
+    middleX, middleY = getTopLeftForStartingRoom(stdscr, prevRoom)
     # debugStr += " TopLeft: " + str(middleX) + "," + str(middleY)
     prevRoom.setPosition(middleX, middleY)
     roomList.append(prevRoom)
@@ -92,6 +92,7 @@ def generateLevel(stdscr, seed):
 #############################################
 # Copy room to grid with smoothing
 #############################################
+# Copies room to a mini grid and creates sets cells with appropriate terrain
 def copyRoomToMiniGrid(room):
     global debugStr
     miniGrid = []
@@ -117,6 +118,7 @@ def copyRoomToMiniGrid(room):
         raise ValueError(room.width, room.height, x, y, foo)
     return miniGrid
 
+# remove internal walls
 def smoothMiniGrid(miniGrid):
     global debugStr
     height = len(miniGrid)
@@ -135,27 +137,7 @@ def smoothMiniGrid(miniGrid):
     miniGrid = newGrid
     return miniGrid
 
-def copyRoomToGrid(room, miniGrid, grid):
-    global debugStr
-    xOffset = room.left
-    yOffset = room.top
-    try:
-        for y in range(len(miniGrid)):
-            for x in range(len(miniGrid[0])):
-                globalX = x + xOffset
-                globalY = y + yOffset
-                if grid[globalY][globalX].subType == "wall" or grid[globalY][globalX].subType == "grass":
-                    continue
-                grid[globalY][globalX] = miniGrid[y][x]
-    except:
-        raise ValueError(x, y, xOffset, yOffset, globalX, globalY)
-
-def carveDoors(roomList, grid):
-    for room in roomList:
-        for door in room.doors:
-            grid[door[1]][door[0]] = BoardItem("door", "unlocked")
-
-
+# counts the number of "background" type neighbors for x, y
 def getNeighbourOpenCount(x, y, grid):
     openCount = 0
     for j in [-1, 0, 1]:
@@ -170,8 +152,31 @@ def getNeighbourOpenCount(x, y, grid):
                 openCount += 1
     return openCount
 
+# copies mini room to larger grid
+def copyRoomToGrid(room, miniGrid, grid):
+    global debugStr
+    xOffset = room.left
+    yOffset = room.top
+    try:
+        for y in range(len(miniGrid)):
+            for x in range(len(miniGrid[0])):
+                # don't draw background of mini-grid
+                if miniGrid[y][x].mainType == "background":
+                    continue
+                globalX = x + xOffset
+                globalY = y + yOffset
+                grid[globalY][globalX] = miniGrid[y][x]
+    except:
+        raise ValueError(x, y, xOffset, yOffset, globalX, globalY)
 
-def getTopLeftOfMiddleRoom(stdscr, prevRoom):
+def carveDoors(roomList, grid):
+    for room in roomList:
+        for door in room.doors:
+            grid[door[1]][door[0]] = BoardItem("door", "unlocked")
+
+
+# Figures out the top left corner for prevRoom centered in the middle of the screen
+def getTopLeftForStartingRoom(stdscr, prevRoom):
     global debugStr
     # maxY, maxX = stdscr.getmaxyx()
     # curses.resizeterm(maxY, maxX)
@@ -364,7 +369,7 @@ class ComplexRoom(Room):
         self.bottomXRange = [rectangle.left, rectangle.right]
         # debugStr += "initrect: [" + str(rectangle.left) + "," + str(rectangle.right) + "," + str(rectangle.top) + "," + str(rectangle.bottom) + "] "
 
-        # create rectangle and place
+        # Place sub-rectangles that comprise of room
         i = 0
         while i < 8:
             rectangle = Rectangle()
@@ -404,7 +409,7 @@ class ComplexRoom(Room):
                 self.bottomXRange[0] = min(rectangle.left, self.bottomXRange[0])
                 self.bottomXRange[1] = max(rectangle.right, self.bottomXRange[1])
 
-        # Shift everything over so internal rectangel starts at 0,0
+        # Calculate offset so top and left start are 0, 0
         xOffset = 0 - self.left
         yOffset = 0 - self.top
         self.left = self.left + xOffset
@@ -412,12 +417,14 @@ class ComplexRoom(Room):
         self.top = self.top + yOffset
         self.bottom = self.bottom + yOffset
 
+        # shift over all rectangles using offest
         for rect in self.rectangleList:
             rect.left = rect.left + xOffset
             rect.right = rect.right + xOffset
             rect.top = rect.top + yOffset
             rect.bottom = rect.bottom + yOffset
 
+        # update ranges with offset
         self.leftYRange = [self.leftYRange[0]+yOffset, self.leftYRange[1]+yOffset]
         self.rightYRange = [self.rightYRange[0]+yOffset, self.rightYRange[1]+yOffset]
         self.topXRange = [self.topXRange[0]+xOffset, self.topXRange[1]+xOffset]

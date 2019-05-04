@@ -16,10 +16,10 @@ class SubType(Enum):
     MONSTER = 6
     UNLOCKED = 7
 
-class BoardItem:
-    boardItemNextId = 0
+class BoardCell:
+    boardCellNextId = 0
     def __init__(self, mainType, subType):
-        self.id = self.boardItemNextId
-        BoardItem.boardItemNextId += 1
+        self.id = self.boardCellNextId
+        BoardCell.boardCellNextId += 1
         self.mainType = mainType
         self.subType = subType

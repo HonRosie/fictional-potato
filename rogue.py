@@ -6,8 +6,8 @@ from terrain import terrainDict
 from gameInfo import levelInfo, randomLevelItems, requiredLevelItems
 from curses import wrapper
 from enum import Enum, IntEnum
-from items import BoardItem
-from randomPlaceIrregular import generateLevel
+from items import BoardCell
+from randomPlaceIrregular import generateRooms
 
 
 debugStr = ""
@@ -70,7 +70,7 @@ class Board:
         global debugStr
         self.id = self.nextBoardId
         Board.nextBoardId += 1
-        grid, roomList = generateLevel(stdscr, seed)
+        grid, roomList = generateRooms(stdscr, seed)
         self.grid = grid
         self.height = len(self.grid)
         self.width = len(self.grid[0])
@@ -137,10 +137,9 @@ maxItemsPerPos = {
 #################################
 class Hero:
     def __init__(self, board):
-        midX = int(board.width/2)
-        midY = int(board.height/2)
-        self.x = midX
-        self.y = midY
+        # TODO Hero can spawn outside a room this way
+        self.x = int(board.width/2)
+        self.y = int(board.height/2)
         self.mods = set()
         self.health = 100
         self.equipMap = {
@@ -150,7 +149,7 @@ class Hero:
             "hands": [],
             "feet": [],
         } # map[pos]boardItem
-        self.inventory = [] # []BoardItems
+        self.inventory = [] # []BoardCells
         self.pot = []
         self.cookState = "inventory"
         self.selectedItemIdx = 0
@@ -193,7 +192,7 @@ class Hero:
         #     # First time using stairs!
         #     if currGridSpace.subType == None:
         #         # generate new board
-        #         destinationBoard = Board(game.level, [BoardItem("portals", game.currBoardId)])
+        #         destinationBoard = Board(game.level, [BoardCell("portals", game.currBoardId)])
         #         game.boards[destinationBoard.id] = destinationBoard
 
         #         # update curr board's portal with id of new board
@@ -246,7 +245,7 @@ class Hero:
         # Pick up items
         if boardItem.mainType == "weapons" or boardItem.mainType == "edible" or boardItem.mainType == "armour":
             newHero.inventory.append(boardItem)
-            board.grid[newY][newX] = BoardItem("terrain", "grass")
+            board.grid[newY][newX] = BoardCell("terrain", "grass")
 
 
     ########################
@@ -305,7 +304,7 @@ class Hero:
                 newHero.inventory.append(self.pot[self.selectedItemIdx])
                 self.removeSelectedItem(newHero.pot, newHero)
             elif self.cookState == "cook":
-                cookedItem = BoardItem("edible", "potion")
+                cookedItem = BoardCell("edible", "potion")
                 cookedItem.subType = "potion" + str(cookedItem.id)
                 newHero.inventory.append(cookedItem)
 
@@ -333,7 +332,7 @@ class Hero:
     def eat(self, game, action, newHero):
         global debugStr
         if action == Actions.ENTER:
-            selectedItem = self.inventory[self.selectedItemIdx] # BoardItem
+            selectedItem = self.inventory[self.selectedItemIdx] # BoardCell
             if selectedItem.mainType == "edible":
                 itemDefn = gameItemDefns[selectedItem.subType]
                 # Apply dmg, if any
@@ -353,14 +352,14 @@ class Hero:
         global debugStr
 
         if action == Actions.ENTER:
-            selectedItem = self.inventory[self.selectedItemIdx] # BoardItem
+            selectedItem = self.inventory[self.selectedItemIdx] # BoardCell
             itemDefn = gameItemDefns[selectedItem.subType]
             if itemDefn.hasEquipPos():
                 possibleEquipPos = itemDefn.equipPos
 
                 # Dequip
                 # Loop through list of items at possible equip position.
-                for idx, currItem in enumerate(self.equipMap[possibleEquipPos]): # Also BoardItem
+                for idx, currItem in enumerate(self.equipMap[possibleEquipPos]): # Also BoardCell
                     # If item matches selected item, dequip. Comparison by object no longer works
                     # TODO: Suspicion is even though when addied, is adding same item from inventory to equipMap.
                     # However, during deep copy, copies of inventory and equipMap are made, where the items no

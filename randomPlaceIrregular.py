@@ -3,7 +3,7 @@ import curses
 import random
 import time
 from enum import Enum, IntEnum
-from items import BoardItem
+from items import BoardCell
 
 debugStr = ""
 
@@ -23,7 +23,7 @@ flipDirectionDict = {
     Direction.RIGHT: Direction.LEFT,    
 }
 
-def generateLevel(stdscr, seed):
+def generateRooms(stdscr, seed):
     global debugStr
     # init random number generator
     random.seed(seed)
@@ -35,7 +35,7 @@ def generateLevel(stdscr, seed):
     for y in range(MAXHEIGHT):
         newRow = []
         for x in range(MAXWIDTH):
-            newRow.append(BoardItem("background", "background"))
+            newRow.append(BoardCell("background", "background"))
         grid.append(newRow)
 
     # init first room
@@ -83,8 +83,8 @@ def generateLevel(stdscr, seed):
     # room.setPosition(0,0)
     # roomList.append(room)
 
-
-    carveDoors(roomList, grid)
+    # for each room, set the door to be type door BoardCell in grid
+    setDoorsOnBoard(roomList, grid)
     # return (grid, newGrid)
     return (grid, roomList)
 
@@ -92,28 +92,31 @@ def generateLevel(stdscr, seed):
 #############################################
 # Copy room to grid with smoothing
 #############################################
-# Copies room to a mini grid and creates sets cells with appropriate terrain
+# Copies room to a mini grid and sets cells with appropriate terrain
 def copyRoomToMiniGrid(room):
     global debugStr
     miniGrid = []
     for y in range(room.height):
         newRow = []
         for x in range(room.width):
-            newRow.append(BoardItem("background", "background"))
+            newRow.append(BoardCell("background", "background"))
         miniGrid.append(newRow)
     try:
         for rectangle in room.rectangleList:
+            # draws top and bottom walls
             for y in [rectangle.top, rectangle.bottom]:
                 for x in range(rectangle.left, rectangle.right+1):
                     if not miniGrid[y][x].subType == "grass":
-                        miniGrid[y][x] = BoardItem("terrain", "wall")
+                        miniGrid[y][x] = BoardCell("terrain", "wall")
+            # draws right and left walls
             for y in range(rectangle.top, rectangle.bottom+1):
                 for x in [rectangle.left, rectangle.right]:
                     if not miniGrid[y][x].subType == "grass":
-                        miniGrid[y][x] = BoardItem("terrain", "wall")
+                        miniGrid[y][x] = BoardCell("terrain", "wall")
+            # fills in with terrain
             for y in range(rectangle.top+1, rectangle.bottom):
                 for x in range(rectangle.left+1, rectangle.right):
-                    miniGrid[y][x] = BoardItem("terrain", "grass")
+                    miniGrid[y][x] = BoardCell("terrain", "grass")
     except:
         raise ValueError(room.width, room.height, x, y, foo)
     return miniGrid
@@ -133,7 +136,7 @@ def smoothMiniGrid(miniGrid):
                     continue
                 openCount = getNeighbourOpenCount(x, y, miniGrid)
                 if openCount < 1:
-                    newGrid[y][x] = BoardItem("terrain", "grass")
+                    newGrid[y][x] = BoardCell("terrain", "grass")
     miniGrid = newGrid
     return miniGrid
 
@@ -169,10 +172,10 @@ def copyRoomToGrid(room, miniGrid, grid):
     except:
         raise ValueError(x, y, xOffset, yOffset, globalX, globalY)
 
-def carveDoors(roomList, grid):
+def setDoorsOnBoard(roomList, grid):
     for room in roomList:
         for door in room.doors:
-            grid[door[1]][door[0]] = BoardItem("door", "unlocked")
+            grid[door[1]][door[0]] = BoardCell("door", "unlocked")
 
 
 # Figures out the top left corner for prevRoom centered in the middle of the screen
@@ -557,8 +560,8 @@ def main(stdscr):
 
     debugStr += str(seed)
 
-    # grid, newGrid = generateLevel(stdscr)
-    grid, _ = generateLevel(stdscr)
+    # grid, newGrid = generateRooms(stdscr)
+    grid, _ = generateRooms(stdscr)
 
     # Game loop
     # draw(stdscr, grid, newGrid)

@@ -6,8 +6,8 @@ from terrain import terrainDict
 from gameInfo import levelInfo, randomLevelItems, requiredLevelItems
 from curses import wrapper
 from enum import Enum, IntEnum
-from boardCell import BoardCell
 from generateRooms import generateRooms
+from boardCell import Type, BACKGROUND, WATER, WALL, GRASS, DOORUNLOCKED
 
 
 debugStr = ""
@@ -75,8 +75,9 @@ class Board:
         self.grid = grid
         self.height = len(self.grid)
         self.width = len(self.grid[0])
-        self.generateWeapons(roomList, seed)
+        # self.generateWeapons(roomList, seed)
 
+    # TODO Fix this
     def generateWeapons(self, roomList, seed):
         global debugStr
         random.seed(seed)
@@ -132,20 +133,27 @@ class ItemDefinition:
         else:
             return False
     
-
-gameItemDefns = {
-    # weapons
-    "sword": ItemDefinition(dmg=6, equipPos="hands"),
-    "axe": ItemDefinition(dmg=8, equipPos="dualHands"),
-    "spadone": ItemDefinition(dmg=8, equipPos="dualHands"),
-    "bow": ItemDefinition(dmg=5, equipPos="hands"),
-    # armour
-    "boots": ItemDefinition(defense=1, equipPos="feet"),
-    "waterboots": ItemDefinition(equipPos="feet", mods=["waterwalking"]),
-    "basic armour": ItemDefinition(defense=2, equipPos="body"),
-    # edible
-    "mushroom": ItemDefinition(mods=["stealth"]),
+gameItems = {
+    BACKGROUND: {"type": Type.TERRAIN},
+    GRASS: {"type": Type.TERRAIN},
+    WALL: {"type": Type.TERRAIN},
+    WATER: {"type": Type.TERRAIN},
+    DOORUNLOCKED: {"type": Type.TERRAIN},
 }
+
+# gameItemDefns = {
+#     # weapons
+#     "sword": ItemDefinition(dmg=6, equipPos="hands"),
+#     "axe": ItemDefinition(dmg=8, equipPos="dualHands"),
+#     "spadone": ItemDefinition(dmg=8, equipPos="dualHands"),
+#     "bow": ItemDefinition(dmg=5, equipPos="hands"),
+#     # armour
+#     "boots": ItemDefinition(defense=1, equipPos="feet"),
+#     "waterboots": ItemDefinition(equipPos="feet", mods=["waterwalking"]),
+#     "basic armour": ItemDefinition(defense=2, equipPos="body"),
+#     # edible
+#     "mushroom": ItemDefinition(mods=["stealth"]),
+# }
 
 maxItemsPerPos = {
     "head": 1,
@@ -239,18 +247,20 @@ class Hero:
     #                 return x, y
 
             
+
     def isBlocked(self, board, newX, newY):
         global debugStr
-        boardItem = board.grid[newY][newX]
-        boardItemType = boardItem.mainType
-        boardItemSubType = boardItem.subType
+        cell = board.grid[newY][newX]
+        cellType = gameItems[cell]["type"]
 
-        if boardItemSubType == "grass":
+        if cell == GRASS:
             return False
-        if boardItemSubType == "water":
+        if cell == DOORUNLOCKED:
+            return False
+        if cell == WATER:
             if "waterwalking" in self.mods:
                 return False
-        if boardItemType == "terrain" or boardItemType == "monster":
+        if cellType == Type.TERRAIN:
             return True
         
         # Default to not blocked
@@ -502,22 +512,23 @@ def drawBoard(stdscr, game, boardX, boardY):
     board = game.boards[game.currBoardId].grid
     for j, row in enumerate(board):
         for i, cell in enumerate(row):
+            cellType = gameItems[cell]
             x = boardX + i
             y = boardY + j
-            if cell.subType == "background":
+            if cell == BACKGROUND:
                 stdscr.addstr(y, x, "", curses.color_pair(Colors.WATER))
-            elif cell.subType == "unlocked":
+            elif cell == DOORUNLOCKED:
                 stdscr.addstr(y, x, "+", curses.color_pair(Colors.WATER))
-            elif cell.subType == "wall":
+            elif cell == WALL:
                 stdscr.addstr(y, x, "#", curses.color_pair(Colors.WALL))
-            elif cell.subType == "water":
+            elif cell == WATER:
                 stdscr.addstr(y, x, "~", curses.color_pair(Colors.WATER))
-            elif cell.mainType == "weapons":
+            elif cellType == "weapons":
                 stdscr.addstr(y, x, "&", curses.color_pair(Colors.HERO))
-            elif cell.mainType == "stairsUp":
-                stdscr.addstr(y, x, "<", curses.color_pair(Colors.ITEMS))
-            elif cell.mainType == "stairsDown":
-                stdscr.addstr(y, x, ">", curses.color_pair(Colors.ITEMS))
+            # elif cell.mainType == "stairsUp":
+            #     stdscr.addstr(y, x, "<", curses.color_pair(Colors.ITEMS))
+            # elif cell.mainType == "stairsDown":
+            #     stdscr.addstr(y, x, ">", curses.color_pair(Colors.ITEMS))
             # elif cell.subType == "mushroom":
             #     stdscr.addstr(y, x, "m", curses.color_pair(Colors.ITEMS))
             else:
@@ -670,17 +681,17 @@ def main(stdscr):
                 game.changeGameMode(action, newHero)
                 hero.move(game, action, newHero)
                 # Hero should pick up items regardless of what action is being taken
-                hero.pickup(currBoard, action, newHero)
+                # hero.pickup(currBoard, action, newHero)
                 # hero.combat(game, currBoard, action, newHero)
             elif game.mode == Modes.INVENTORY:
                 game.changeGameMode(action, newHero)
-                hero.moveSelection(game.hero.inventory, action, newHero)
+                # hero.moveSelection(game.hero.inventory, action, newHero)
                 # hero.eat(game, action, newHero)
                 # hero.equip(game, action, newHero)
                 # hero.removeSelectedItem(game.hero.inventory, newHero)
             elif game.mode == Modes.COOK:
                 game.changeGameMode(action, newHero)
-                hero.cook(action, newHero)
+                # hero.cook(action, newHero)
             game.hero = newHero
             # draw(stdscr, game)
 

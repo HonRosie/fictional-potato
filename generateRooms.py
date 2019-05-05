@@ -3,7 +3,7 @@ import curses
 import random
 import time
 from enum import Enum, IntEnum
-from boardCell import BoardCell
+from boardCell import BACKGROUND, WALL, GRASS, DOORUNLOCKED
 
 debugStr = ""
 
@@ -35,7 +35,7 @@ def generateRooms(stdscr, seed):
     for y in range(MAXHEIGHT):
         newRow = []
         for x in range(MAXWIDTH):
-            newRow.append(BoardCell("background", "background"))
+            newRow.append(BACKGROUND)
         grid.append(newRow)
 
     # init first room
@@ -83,7 +83,7 @@ def generateRooms(stdscr, seed):
     # room.setPosition(0,0)
     # roomList.append(room)
 
-    # for each room, set the door to be type door BoardCell in grid
+    # for each room, set the door to be DoorUnlocked id in grid
     setDoorsOnBoard(roomList, grid)
     # return (grid, newGrid)
     return (grid, roomList)
@@ -99,24 +99,24 @@ def copyRoomToMiniGrid(room):
     for y in range(room.height):
         newRow = []
         for x in range(room.width):
-            newRow.append(BoardCell("background", "background"))
+            newRow.append(BACKGROUND)
         miniGrid.append(newRow)
     try:
         for rectangle in room.rectangleList:
             # draws top and bottom walls
             for y in [rectangle.top, rectangle.bottom]:
                 for x in range(rectangle.left, rectangle.right+1):
-                    if not miniGrid[y][x].subType == "grass":
-                        miniGrid[y][x] = BoardCell("terrain", "wall")
+                    if not miniGrid[y][x] == GRASS:
+                        miniGrid[y][x] = WALL
             # draws right and left walls
             for y in range(rectangle.top, rectangle.bottom+1):
                 for x in [rectangle.left, rectangle.right]:
-                    if not miniGrid[y][x].subType == "grass":
-                        miniGrid[y][x] = BoardCell("terrain", "wall")
+                    if not miniGrid[y][x] == GRASS:
+                        miniGrid[y][x] = WALL
             # fills in with terrain
             for y in range(rectangle.top+1, rectangle.bottom):
                 for x in range(rectangle.left+1, rectangle.right):
-                    miniGrid[y][x] = BoardCell("terrain", "grass")
+                    miniGrid[y][x] = GRASS
     except:
         raise ValueError(room.width, room.height, x, y, foo)
     return miniGrid
@@ -130,13 +130,13 @@ def smoothMiniGrid(miniGrid):
     newGrid = copy.deepcopy(miniGrid)
     for y in range(height):
         for x in range(width):
-            if miniGrid[y][x].subType == "wall":
+            if miniGrid[y][x] == WALL:
                 # If is on edge of entire board, must be outer wall
                 if x == 0 or y == 0 or x == width - 1 or y == height - 1:
                     continue
                 openCount = getNeighbourOpenCount(x, y, miniGrid)
                 if openCount < 1:
-                    newGrid[y][x] = BoardCell("terrain", "grass")
+                    newGrid[y][x] = GRASS
     miniGrid = newGrid
     return miniGrid
 
@@ -151,7 +151,7 @@ def getNeighbourOpenCount(x, y, grid):
                 continue
             if newX == x and newY == y:
                 continue
-            if grid[newY][newX].mainType == "background":
+            if grid[newY][newX] == BACKGROUND:
                 openCount += 1
     return openCount
 
@@ -164,7 +164,7 @@ def copyRoomToGrid(room, miniGrid, grid):
         for y in range(len(miniGrid)):
             for x in range(len(miniGrid[0])):
                 # don't draw background of mini-grid
-                if miniGrid[y][x].mainType == "background":
+                if miniGrid[y][x] == BACKGROUND:
                     continue
                 globalX = x + xOffset
                 globalY = y + yOffset
@@ -175,7 +175,7 @@ def copyRoomToGrid(room, miniGrid, grid):
 def setDoorsOnBoard(roomList, grid):
     for room in roomList:
         for door in room.doors:
-            grid[door[1]][door[0]] = BoardCell("door", "unlocked")
+            grid[door[1]][door[0]] = DOORUNLOCKED
 
 
 # Figures out the top left corner for prevRoom centered in the middle of the screen
@@ -518,16 +518,14 @@ def drawBoard(stdscr, grid, boardX, boardY):
         for i, cell in enumerate(row):
             x = boardX + i
             y = boardY + j
-            if cell.subType == "grass":
-                stdscr.addstr(y, x, ".", curses.color_pair(Colors.GRASS))
-            elif cell.subType == "wall":
+            if cell == WALL:
                 stdscr.addstr(y, x, "#", curses.color_pair(Colors.WALL))
-            elif cell.subType == "unlocked":
+            elif cell == DOORUNLOCKED:
                 stdscr.addstr(y, x, "+", curses.color_pair(Colors.WATER))
-            elif cell.mainType == "background":
+            elif cell == BACKGROUND:
                 stdscr.addstr(y, x, "", curses.color_pair(Colors.WALL))
             else:
-                stdscr.addstr(y, x, cell, curses.color_pair(Colors.GRASS))
+                stdscr.addstr(y, x, ".", curses.color_pair(Colors.GRASS))
 
 
 def draw(stdscr, grid):
@@ -563,7 +561,7 @@ def main(stdscr):
     debugStr += str(seed)
 
     # grid, newGrid = generateRooms(stdscr)
-    grid, _ = generateRooms(stdscr)
+    grid, _ = generateRooms(stdscr, seed)
 
     # Game loop
     # draw(stdscr, grid, newGrid)

@@ -85,11 +85,16 @@ class Board:
         # create itemInstance? Is this necessary for weapons? Maybe if want to deteriote them
         ######### temp solution #########
         # pick random location 
-        randomRooms = random.sample(roomList, 5)
+        randomRooms = random.sample(roomList, 2)
         for room in randomRooms:
             x, y = self.getRandomValidPosInRoom(room, seed)
             self.grid[y][x] = BoardCell("weapons", "sword")
-            # debugStr += str(x) + "," + str(y) + " | "
+            debugStr += str(x) + "," + str(y) + " | "
+        randomRooms = random.sample(roomList, 2)
+        for room in randomRooms:
+            x, y = self.getRandomValidPosInRoom(room, seed)
+            self.grid[y][x] = BoardCell("weapons", "apple")
+            debugStr += str(x) + "," + str(y) + " | "
     
 
     def getRandomValidPosInRoom(self, room, seed):
@@ -160,14 +165,14 @@ class Hero:
         self.y = int(board.height/2)
         self.mods = set()
         self.health = 100
-        self.equipMap = {
-            "head": [],
-            "body": [],
-            "dualHands": [],
-            "hands": [],
-            "feet": [],
-        } # map[pos]BoardCell
-        self.inventory = [] # []BoardCells not instance of item
+        # self.equipMap = {
+        #     "head": [],
+        #     "body": [],
+        #     "dualHands": [],
+        #     "hands": [],
+        #     "feet": [],
+        # } # map[pos]BoardCell
+        self.inventory = {} # map[subType]BoardCell
         self.selectedItemIdx = 0
         # self.pot = []
         # self.cookState = "inventory"
@@ -259,24 +264,32 @@ class Hero:
         newX, newY = self.computeNewPos(board, action, False)
         # Check if there's an item at hero's x,y coordinates    
         boardCell = board.grid[newY][newX]
+
         # Pick up items
-        if boardCell.mainType == "weapons" or boardCell.mainType == "edible" or boardCell.mainType == "armour":
-            newHero.inventory.append(boardCell)
+        mainType = boardCell.mainType
+        subType = boardCell.subType
+        if mainType == "weapons" or mainType == "edible" or mainType == "armour":
+            if subType in self.inventory:
+                newHero.inventory[subType].append(boardCell)
+            else:
+                newHero.inventory[subType] = [boardCell]
             board.grid[newY][newX] = BoardCell("terrain", "grass")
 
 
     ########################
     # Inventory selection
     ########################
-    def moveSelection(self, itemList, action, newHero):
+    def moveSelection(self, items, action, newHero):
         global debugStr
+        numItems = len(items.keys())
         # Move selection down/up
         if action == Actions.DOWN:
-            if self.selectedItemIdx < len(itemList)-1:
+            if self.selectedItemIdx < numItems-1:
                 newHero.selectedItemIdx += 1
         if action == Actions.UP:
             if self.selectedItemIdx > 0:
                 newHero.selectedItemIdx -= 1
+        # debugStr += str(newHero.selectedItemIdx) + " | "
 
 
     ########################
@@ -460,6 +473,31 @@ def drawList(stdscr, game, itemList, title, posX, posY, displaySelector):
         stdscr.addstr(posY, posX, itemString, color)
         posY += 1
 
+# Draws a bunch of items in a list(non-Pythonic) format
+def drawListOfThings(stdscr, game, items, title, posX, posY, displaySelector):
+    global debugStr
+    # Draw title
+    stdscr.addstr(posY, posX, title, curses.color_pair(Colors.INVENTORY))
+    posY += 1
+
+    # items -> map[subType]BoardCell
+    itemList = list(items.keys()) # list of unique subtypes
+    itemList.sort()
+    color = curses.color_pair(Colors.ITEMS)
+    for idx, item in enumerate(itemList):
+        itemString = item
+        numItems = len(items[item])
+        # append quantity
+        if numItems > 1:
+            numString = " (" + str(numItems) + ")"
+            itemString += numString
+        # append selection asterik
+        if idx == game.hero.selectedItemIdx and displaySelector:
+            itemString += " * "
+        stdscr.addstr(posY, posX, itemString, color)
+        posY += 1
+
+
 def drawBoard(stdscr, game, boardX, boardY):
     board = game.boards[game.currBoardId].grid
     for j, row in enumerate(board):
@@ -475,7 +513,7 @@ def drawBoard(stdscr, game, boardX, boardY):
             elif cell.subType == "water":
                 stdscr.addstr(y, x, "~", curses.color_pair(Colors.WATER))
             elif cell.mainType == "weapons":
-                stdscr.addstr(y, x, "|", curses.color_pair(Colors.HERO))
+                stdscr.addstr(y, x, "&", curses.color_pair(Colors.HERO))
             elif cell.mainType == "stairsUp":
                 stdscr.addstr(y, x, "<", curses.color_pair(Colors.ITEMS))
             elif cell.mainType == "stairsDown":
@@ -488,42 +526,42 @@ def drawBoard(stdscr, game, boardX, boardY):
 def drawHero(stdscr, game, heroX, heroY):
     stdscr.addstr(heroY, heroX, "h", curses.color_pair(Colors.HERO))
 
-def drawHeroStats(stdscr, game, heroStatsX, heroStatsY, maxY, maxX):
-    heroStatsX = maxX - 20
-    heroStatsY = game.boardOriginY
-    stdscr.addstr(heroStatsY, heroStatsX, "Hero Stats")
-    heroStatsY += 1
-    stdscr.addstr(heroStatsY, heroStatsX, "Health: " + str(game.hero.health))
-    heroDmg, heroDefense = 0, 0
-    for pos, itemList in game.hero.equipMap.items():
-        for item in itemList:
-            itemDefn = gameItemDefns[item.subType]
-            heroDmg += itemDefn.dmg
-            heroDefense += itemDefn.defense
-    heroStatsY += 1                
-    stdscr.addstr(heroStatsY, heroStatsX, "Damage: " + str(heroDmg))
-    heroStatsY += 1
-    stdscr.addstr(heroStatsY, heroStatsX, "Defense: " + str(heroDefense))
-    for mods in game.hero.mods:
-        heroStatsY += 1
-        stdscr.addstr(heroStatsY, heroStatsX, mods)
+# def drawHeroStats(stdscr, game, heroStatsX, heroStatsY, maxY, maxX):
+#     heroStatsX = maxX - 20
+#     heroStatsY = game.boardOriginY
+#     stdscr.addstr(heroStatsY, heroStatsX, "Hero Stats")
+#     heroStatsY += 1
+#     stdscr.addstr(heroStatsY, heroStatsX, "Health: " + str(game.hero.health))
+#     heroDmg, heroDefense = 0, 0
+#     for pos, itemList in game.hero.equipMap.items():
+#         for item in itemList:
+#             itemDefn = gameItemDefns[item.subType]
+#             heroDmg += itemDefn.dmg
+#             heroDefense += itemDefn.defense
+#     heroStatsY += 1                
+#     stdscr.addstr(heroStatsY, heroStatsX, "Damage: " + str(heroDmg))
+#     heroStatsY += 1
+#     stdscr.addstr(heroStatsY, heroStatsX, "Defense: " + str(heroDefense))
+#     for mods in game.hero.mods:
+#         heroStatsY += 1
+#         stdscr.addstr(heroStatsY, heroStatsX, mods)
 
-def drawCookMode(stdscr, game):
-    inventoryX = game.boardOriginX
-    inventoryY = game.boardOriginY
-    displaySelector = game.hero.cookState == "inventory"
-    drawList(stdscr, game, game.hero.inventory, "Inventory", inventoryX, inventoryY, displaySelector)
+# def drawCookMode(stdscr, game):
+#     inventoryX = game.boardOriginX
+#     inventoryY = game.boardOriginY
+#     displaySelector = game.hero.cookState == "inventory"
+#     drawList(stdscr, game, game.hero.inventory, "Inventory", inventoryX, inventoryY, displaySelector)
 
-    potX = game.boardOriginX + 30
-    potY = game.boardOriginY
-    displaySelector = game.hero.cookState == "pot"
-    drawList(stdscr, game, game.hero.pot, "Pot", potX, potY, displaySelector)
+#     potX = game.boardOriginX + 30
+#     potY = game.boardOriginY
+#     displaySelector = game.hero.cookState == "pot"
+#     drawList(stdscr, game, game.hero.pot, "Pot", potX, potY, displaySelector)
 
-    # Cook
-    cookString = "Cook?"
-    if game.hero.cookState == "cook":
-        cookString += " * "
-    stdscr.addstr(game.boardOriginY, potX + 30, cookString, curses.color_pair(Colors.INVENTORY))
+#     # Cook
+#     cookString = "Cook?"
+#     if game.hero.cookState == "cook":
+#         cookString += " * "
+#     stdscr.addstr(game.boardOriginY, potX + 30, cookString, curses.color_pair(Colors.INVENTORY))
 
 
 def drawPlayMode(stdscr, game, maxY, maxX):
@@ -538,15 +576,15 @@ def drawPlayMode(stdscr, game, maxY, maxX):
     drawHero(stdscr, game, heroX, heroY)
 
     # Draw hero stats
-    heroStatsX = maxX - 20
-    heroStatsY = game.boardOriginY
-    drawHeroStats(stdscr, game, heroStatsX, heroStatsY, maxY, maxX)
+    # heroStatsX = maxX - 20
+    # heroStatsY = game.boardOriginY
+    # drawHeroStats(stdscr, game, heroStatsX, heroStatsY, maxY, maxX)
 
     # Draw inventory
     inventoryX = 0
     inventoryY = game.boardOriginY
     displaySelector = game.mode == Modes.INVENTORY
-    drawList(stdscr, game, game.hero.inventory, "Inventory", inventoryX, inventoryY, displaySelector)
+    drawListOfThings(stdscr, game, game.hero.inventory, "Inventory", inventoryX, inventoryY, displaySelector)
 
 
 def draw(stdscr, game):
@@ -638,7 +676,7 @@ def main(stdscr):
                 game.changeGameMode(action, newHero)
                 hero.moveSelection(game.hero.inventory, action, newHero)
                 # hero.eat(game, action, newHero)
-                hero.equip(game, action, newHero)
+                # hero.equip(game, action, newHero)
                 # hero.removeSelectedItem(game.hero.inventory, newHero)
             elif game.mode == Modes.COOK:
                 game.changeGameMode(action, newHero)

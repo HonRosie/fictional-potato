@@ -41,45 +41,25 @@ class Game:
         global debugStr
         if self.mode == Modes.COOK:
             self.mode = Modes.PLAY
+            return
 
-        if self.mode == Modes.PLAY:
-            if action == Actions.TOGGLE:
+        elif self.mode == Modes.PLAY:
+            if action == Actions.INVENTORY:
                 newHero.selectedItemIdx = 0
                 self.mode = Modes.INVENTORY
             if action == Actions.COOK:
                 newHero.selectedItemIdx = 0
                 self.mode = Modes.COOK
+            return
 
-        if self.mode == Modes.INVENTORY:
-            if action == Actions.TOGGLE:
+        elif self.mode == Modes.INVENTORY:
+            if action == Actions.INVENTORY:
                 newHero.selectedItemIdx = 0
                 self.mode = Modes.PLAY
             if action == Actions.COOK:
                 newHero.selectedItemIdx = 0
                 self.mode = Modes.COOK
-                
-    def changeModeFromPlay(self, action, newHero):
-        global debugStr
-        if action == Actions.TOGGLE:
-            newHero.selectedItemIdx = 0
-            self.mode = Modes.INVENTORY
-        if action == Actions.COOK:
-            newHero.selectedItemIdx = 0
-            self.mode = Modes.COOK
-
-    def changeModeFromInventory(self, action, newHero):
-        global debugStr
-        if action == Actions.TOGGLE:
-            newHero.selectedItemIdx = 0
-            self.mode = Modes.PLAY
-        if action == Actions.COOK:
-            newHero.selectedItemIdx = 0
-            self.mode = Modes.COOK
-
-    def changeModeFromCook(self, action, newHero):
-        global debugStr
-        if action == Actions.COOK:
-            self.mode = Modes.PLAY
+            return
 
 
 #################################
@@ -109,13 +89,12 @@ class Board:
         for room in randomRooms:
             x, y = self.getRandomValidPosInRoom(room, seed)
             self.grid[y][x] = BoardCell("weapons", "sword")
-            debugStr += str(x) + "," + str(y) + " | "
+            # debugStr += str(x) + "," + str(y) + " | "
     
 
     def getRandomValidPosInRoom(self, room, seed):
         global debugStr
         random.seed(seed)
-        debugStr += str(room) + " | "
         while True:
             x = random.randint(room.left, room.right)
             y = random.randint(room.top, room.bottom)
@@ -247,12 +226,12 @@ class Hero:
         newHero.x = newX
         newHero.y = newY
 
-    def computePosOnDestinationBoard(self, oldBoard, destinationBoard):
-        destinationGrid = destinationBoard.grid
-        for y, row in enumerate(destinationBoard.grid):
-            for x, cell in enumerate(row):
-                if destinationGrid[y][x].mainType == "portals" and destinationGrid[y][x].subType == oldBoard.id:
-                    return x, y
+    # def computePosOnDestinationBoard(self, oldBoard, destinationBoard):
+    #     destinationGrid = destinationBoard.grid
+    #     for y, row in enumerate(destinationBoard.grid):
+    #         for x, cell in enumerate(row):
+    #             if destinationGrid[y][x].mainType == "portals" and destinationGrid[y][x].subType == oldBoard.id:
+    #                 return x, y
 
             
     def isBlocked(self, board, newX, newY):
@@ -384,62 +363,62 @@ class Hero:
     #             self.removeSelectedItem(newHero.inventory, newHero)
                 
     ########################
-    # Equip
+    # Equip TODO
     ########################  
     # Equip hero with weapon or armour
-    def equip(self, game, action, newHero):
-        global debugStr
+    # def equip(self, game, action, newHero):
+    #     global debugStr
 
-        if action == Actions.ENTER:
-            selectedItem = self.inventory[self.selectedItemIdx] # BoardCell
-            itemDefn = gameItemDefns[selectedItem.subType]
-            if itemDefn.hasEquipPos():
-                possibleEquipPos = itemDefn.equipPos
+    #     if action == Actions.ENTER:
+    #         selectedItem = self.inventory[self.selectedItemIdx] # BoardCell
+    #         itemDefn = gameItemDefns[selectedItem.subType]
+    #         if itemDefn.hasEquipPos():
+    #             possibleEquipPos = itemDefn.equipPos
 
-                # Dequip
-                # Loop through list of items at possible equip position.
-                for idx, currItem in enumerate(self.equipMap[possibleEquipPos]): # Also BoardCell
-                    # If item matches selected item, dequip. Comparison by object no longer works
-                    # TODO: Suspicion is even though when addied, is adding same item from inventory to equipMap.
-                    # However, during deep copy, copies of inventory and equipMap are made, where the items no
-                    # longer reference each other
-                    # ie. "foo" from inventory() is added to equipMap so it also has "foo".
-                    # During deep copy, "foo" in inventory becomes "foo1", and "foo" in equipMap becomes "foo2"?
-                    if currItem.id == selectedItem.id:
-                        # TODO: Should this instead be a loop which removes the correct id?
-                        del newHero.equipMap[possibleEquipPos][idx]
-                        for mod in itemDefn.mods:
-                            newHero.mods.remove(mod)
-                        # debugStr += "dequip" + str(newHero.equipMap[possibleEquipPos])
-                        return
+    #             # Dequip
+    #             # Loop through list of items at possible equip position.
+    #             for idx, currItem in enumerate(self.equipMap[possibleEquipPos]): # Also BoardCell
+    #                 # If item matches selected item, dequip. Comparison by object no longer works
+    #                 # TODO: Suspicion is even though when addied, is adding same item from inventory to equipMap.
+    #                 # However, during deep copy, copies of inventory and equipMap are made, where the items no
+    #                 # longer reference each other
+    #                 # ie. "foo" from inventory() is added to equipMap so it also has "foo".
+    #                 # During deep copy, "foo" in inventory becomes "foo1", and "foo" in equipMap becomes "foo2"?
+    #                 if currItem.id == selectedItem.id:
+    #                     # TODO: Should this instead be a loop which removes the correct id?
+    #                     del newHero.equipMap[possibleEquipPos][idx]
+    #                     for mod in itemDefn.mods:
+    #                         newHero.mods.remove(mod)
+    #                     # debugStr += "dequip" + str(newHero.equipMap[possibleEquipPos])
+    #                     return
 
-                # Equip
-                # None of items at possible equip position match current selected item. Equip
-                numItemsAtEquipPos = len(self.equipMap[possibleEquipPos])
-                # EquipPos Count already maxed out
-                if numItemsAtEquipPos == maxItemsPerPos[possibleEquipPos]:
-                    errorStr = f"You can only have {maxItemsPerPos[possibleEquipPos]!r} items in {possibleEquipPos}"
-                    game.messages.append(errorStr)
-                    # debugStr += "Too many already: " + str(self.equipMap[possibleEquipPos])
-                    return
-                # Can't equip dualhanded weapon if already have a one handed weapon
-                elif possibleEquipPos == "dualHands" and len(self.equipMap["hands"]) > 0:
-                    errorStr = f"This is a 2-handed item and you are already holding another item"
-                    game.messages.append(errorStr)
-                    # debugStr += "Cannot equp dualhands: " + str(self.equipMap[possibleEquipPos])
-                    return
-                # Cannot equip any more hand weapons if already holding a dualhanded weapon
-                elif possibleEquipPos == "hands" and len(self.equipMap["dualHands"]) == 1:
-                    errorStr = f"You don't have enough hands. Drop an item or make friends with an octopus!"
-                    game.messages.append(errorStr)
-                    # debugStr += "Cannot equp hands: " + str(self.equipMap[possibleEquipPos])
-                    return
-                # Equip!
-                else:
-                    newHero.equipMap[possibleEquipPos].append(selectedItem)
-                    for mod in itemDefn.mods:
-                        newHero.mods.add(mod)
-                    # debugStr += "equip: " + str(newHero.equipMap[possibleEquipPos])
+    #             # Equip
+    #             # None of items at possible equip position match current selected item. Equip
+    #             numItemsAtEquipPos = len(self.equipMap[possibleEquipPos])
+    #             # EquipPos Count already maxed out
+    #             if numItemsAtEquipPos == maxItemsPerPos[possibleEquipPos]:
+    #                 errorStr = f"You can only have {maxItemsPerPos[possibleEquipPos]!r} items in {possibleEquipPos}"
+    #                 game.messages.append(errorStr)
+    #                 # debugStr += "Too many already: " + str(self.equipMap[possibleEquipPos])
+    #                 return
+    #             # Can't equip dualhanded weapon if already have a one handed weapon
+    #             elif possibleEquipPos == "dualHands" and len(self.equipMap["hands"]) > 0:
+    #                 errorStr = f"This is a 2-handed item and you are already holding another item"
+    #                 game.messages.append(errorStr)
+    #                 # debugStr += "Cannot equp dualhands: " + str(self.equipMap[possibleEquipPos])
+    #                 return
+    #             # Cannot equip any more hand weapons if already holding a dualhanded weapon
+    #             elif possibleEquipPos == "hands" and len(self.equipMap["dualHands"]) == 1:
+    #                 errorStr = f"You don't have enough hands. Drop an item or make friends with an octopus!"
+    #                 game.messages.append(errorStr)
+    #                 # debugStr += "Cannot equp hands: " + str(self.equipMap[possibleEquipPos])
+    #                 return
+    #             # Equip!
+    #             else:
+    #                 newHero.equipMap[possibleEquipPos].append(selectedItem)
+    #                 for mod in itemDefn.mods:
+    #                     newHero.mods.add(mod)
+    #                 # debugStr += "equip: " + str(newHero.equipMap[possibleEquipPos])
 
                     
 
@@ -604,7 +583,7 @@ class Actions(Enum):
     DOWN = 2
     LEFT = 3
     RIGHT = 4
-    TOGGLE = 5
+    INVENTORY = 5
     EQUIP = 6
     ENTER = 7
     COOK = 8
@@ -615,9 +594,9 @@ ActionMap = {
     curses.KEY_UP: Actions.UP,
     curses.KEY_RIGHT: Actions.RIGHT,
     curses.KEY_LEFT: Actions.LEFT,
-    9: Actions.TOGGLE,
     10: Actions.ENTER,
     ord("c"): Actions.COOK,
+    ord("i"): Actions.INVENTORY, # opens/closes inventory
     ord("q"): Actions.QUIT
 }
 
@@ -642,6 +621,7 @@ def main(stdscr):
         currBoard = game.boards[game.currBoardId]
         key = stdscr.getch()
         if key in ActionMap:
+            # debugStr += str(key) + " "
             action = ActionMap[key]
             if action == Actions.QUIT:
                 break
@@ -649,19 +629,19 @@ def main(stdscr):
                 continue
             newHero = copy.deepcopy(game.hero)
             if game.mode == Modes.PLAY:
-                game.changeModeFromPlay(action, newHero)
+                game.changeGameMode(action, newHero)
                 hero.move(game, action, newHero)
                 # Hero should pick up items regardless of what action is being taken
                 hero.pickup(currBoard, action, newHero)
                 # hero.combat(game, currBoard, action, newHero)
             elif game.mode == Modes.INVENTORY:
-                game.changeModeFromInventory(action, newHero)
+                game.changeGameMode(action, newHero)
                 hero.moveSelection(game.hero.inventory, action, newHero)
                 # hero.eat(game, action, newHero)
                 hero.equip(game, action, newHero)
                 # hero.removeSelectedItem(game.hero.inventory, newHero)
             elif game.mode == Modes.COOK:
-                game.changeModeFromCook(action, newHero)
+                game.changeGameMode(action, newHero)
                 hero.cook(action, newHero)
             game.hero = newHero
             # draw(stdscr, game)

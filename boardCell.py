@@ -1,20 +1,19 @@
 from enum import Enum, IntEnum
 
-class MainType(Enum):
-    BACKGROUND = 1
-    TERRAIN = 2
-    EDIBLES = 3
-    MONSTER = 4
-    DOOR = 5
+class Type(Enum):
+    TERRAIN = 1
+    DOOR = 2
+    WEAPON = 3
 
-class SubType(Enum):
+class Terrain(Enum):
     BACKGROUND = 1
     GRASS = 2
     WALL = 3
     WATER = 4
-    APPLE = 5
-    MONSTER = 6
-    UNLOCKED = 7
+    UNLOCKED = 5
+
+class Weapon(Enum):
+    SWORD = 1
 
 class BoardCell:
     boardCellNextId = 0

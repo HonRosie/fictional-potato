@@ -6,8 +6,8 @@ from terrain import terrainDict
 from gameInfo import levelInfo, randomLevelItems, requiredLevelItems
 from curses import wrapper
 from enum import Enum, IntEnum
-from items import BoardCell
-from randomPlaceIrregular import generateRooms
+from boardCell import BoardCell
+from generateRooms import generateRooms
 
 
 debugStr = ""
@@ -37,6 +37,27 @@ class Game:
         self.boards[board.id] = board
         self.hero = Hero(board)
 
+    def changeGameMode(self, action, newHero):
+        global debugStr
+        if self.mode == Modes.COOK:
+            self.mode = Modes.PLAY
+
+        if self.mode == Modes.PLAY:
+            if action == Actions.TOGGLE:
+                newHero.selectedItemIdx = 0
+                self.mode = Modes.INVENTORY
+            if action == Actions.COOK:
+                newHero.selectedItemIdx = 0
+                self.mode = Modes.COOK
+
+        if self.mode == Modes.INVENTORY:
+            if action == Actions.TOGGLE:
+                newHero.selectedItemIdx = 0
+                self.mode = Modes.PLAY
+            if action == Actions.COOK:
+                newHero.selectedItemIdx = 0
+                self.mode = Modes.COOK
+                
     def changeModeFromPlay(self, action, newHero):
         global debugStr
         if action == Actions.TOGGLE:
@@ -74,12 +95,30 @@ class Board:
         self.grid = grid
         self.height = len(self.grid)
         self.width = len(self.grid[0])
+        self.generateWeapons(roomList, seed)
 
-    def getRandomValidPos(self):
+    def generateWeapons(self, roomList, seed):
         global debugStr
+        random.seed(seed)
+        # TODO ultimately want generation to look like
+        # set BoardCell to weapon type
+        # create itemInstance? Is this necessary for weapons? Maybe if want to deteriote them
+        ######### temp solution #########
+        # pick random location 
+        randomRooms = random.sample(roomList, 5)
+        for room in randomRooms:
+            x, y = self.getRandomValidPosInRoom(room, seed)
+            self.grid[y][x] = BoardCell("weapons", "sword")
+            debugStr += str(x) + "," + str(y) + " | "
+    
+
+    def getRandomValidPosInRoom(self, room, seed):
+        global debugStr
+        random.seed(seed)
+        debugStr += str(room) + " | "
         while True:
-            x = random.randrange(self.width)
-            y = random.randrange(self.height)
+            x = random.randint(room.left, room.right)
+            y = random.randint(room.top, room.bottom)
             if self.grid[y][x].subType == "grass":
                 # debugStr += str(self.id) + ":" + str(x) + "," + str(y) + " | "
                 return x, y
@@ -148,12 +187,11 @@ class Hero:
             "dualHands": [],
             "hands": [],
             "feet": [],
-        } # map[pos]boardItem
-        self.inventory = [] # []BoardCells
-        self.pot = []
-        self.cookState = "inventory"
+        } # map[pos]BoardCell
+        self.inventory = [] # []BoardCells not instance of item
         self.selectedItemIdx = 0
-        self.shouldRemoveSelectedItem = False
+        # self.pot = []
+        # self.cookState = "inventory"
 
     ########################
     # Hero movement
@@ -241,10 +279,10 @@ class Hero:
         global debugStr
         newX, newY = self.computeNewPos(board, action, False)
         # Check if there's an item at hero's x,y coordinates    
-        boardItem = board.grid[newY][newX]
+        boardCell = board.grid[newY][newX]
         # Pick up items
-        if boardItem.mainType == "weapons" or boardItem.mainType == "edible" or boardItem.mainType == "armour":
-            newHero.inventory.append(boardItem)
+        if boardCell.mainType == "weapons" or boardCell.mainType == "edible" or boardCell.mainType == "armour":
+            newHero.inventory.append(boardCell)
             board.grid[newY][newX] = BoardCell("terrain", "grass")
 
 
@@ -261,88 +299,89 @@ class Hero:
             if self.selectedItemIdx > 0:
                 newHero.selectedItemIdx -= 1
 
-    def removeSelectedItem(self, itemList, newHero):
-        # TODO Is it okay to assume order is the same across deep copy?
-        del itemList[newHero.selectedItemIdx]
-        if self.selectedItemIdx > 0:
-            newHero.selectedItemIdx -= 1
 
     ########################
     # Cook TODO Make this work again
     ########################
-    def cook(self, action, newHero):
-        global debugStr
-        # Pick which list to arrow through
-        if action == Actions.LEFT:
-            newHero.selectedItemIdx = 0
-            if self.cookState == "cook":
-                if len(self.pot) != 0:
-                    newHero.cookState = "pot"
-                else:
-                    newHero.cookState = "inventory"
-            elif self.cookState == "pot":
-                newHero.cookState = "inventory"
-        elif action == Actions.RIGHT:
-            newHero.selectedItemIdx = 0
-            if self.cookState == "inventory" and len(self.pot) != 0:
-                newHero.cookState = "pot"
-            elif self.cookState == "pot":
-                newHero.cookState = "cook"
+    # def cook(self, action, newHero):
+    #     global debugStr
+    #     # Pick which list to arrow through
+    #     if action == Actions.LEFT:
+    #         newHero.selectedItemIdx = 0
+    #         if self.cookState == "cook":
+    #             if len(self.pot) != 0:
+    #                 newHero.cookState = "pot"
+    #             else:
+    #                 newHero.cookState = "inventory"
+    #         elif self.cookState == "pot":
+    #             newHero.cookState = "inventory"
+    #     elif action == Actions.RIGHT:
+    #         newHero.selectedItemIdx = 0
+    #         if self.cookState == "inventory" and len(self.pot) != 0:
+    #             newHero.cookState = "pot"
+    #         elif self.cookState == "pot":
+    #             newHero.cookState = "cook"
 
-        # Arrow through selected list
-        if self.cookState == "pot":
-            self.moveSelection(self.pot, action, newHero)
-        elif self.cookState == "inventory":
-            self.moveSelection(self.inventory, action, newHero)
+    #     # Arrow through selected list
+    #     if self.cookState == "pot":
+    #         self.moveSelection(self.pot, action, newHero)
+    #     elif self.cookState == "inventory":
+    #         self.moveSelection(self.inventory, action, newHero)
 
-        # Either add or remove item from pot
-        if action == Actions.ENTER:
-            if self.cookState == "inventory":
-                newHero.pot.append(self.inventory[self.selectedItemIdx])
-                self.removeSelectedItem(newHero.inventory, newHero)
-            elif self.cookState == "pot":
-                newHero.inventory.append(self.pot[self.selectedItemIdx])
-                self.removeSelectedItem(newHero.pot, newHero)
-            elif self.cookState == "cook":
-                cookedItem = BoardCell("edible", "potion")
-                cookedItem.subType = "potion" + str(cookedItem.id)
-                newHero.inventory.append(cookedItem)
+    #     # Either add or remove item from pot
+    #     if action == Actions.ENTER:
+    #         if self.cookState == "inventory":
+    #             newHero.pot.append(self.inventory[self.selectedItemIdx])
+    #             self.removeSelectedItem(newHero.inventory, newHero)
+    #         elif self.cookState == "pot":
+    #             newHero.inventory.append(self.pot[self.selectedItemIdx])
+    #             self.removeSelectedItem(newHero.pot, newHero)
+    #         elif self.cookState == "cook":
+    #             cookedItem = BoardCell("edible", "potion")
+    #             cookedItem.subType = "potion" + str(cookedItem.id)
+    #             newHero.inventory.append(cookedItem)
 
-                # calculate game definition
-                dmg, healing, health = 0, 0, 0
-                mods = []
-                for item in self.pot:
-                    defn = gameItemDefns[item.subType]
-                    healing += defn.healing
-                    dmg += defn.dmg
-                    mods.extend(defn.mods)
-                gameItemDefns[cookedItem.subType] = ItemDefinition(healing=healing, dmg=dmg, mods=mods)
-                newHero.pot = []
-                debugStr += " Create new item to add to inventory"
+    #             # calculate game definition
+    #             dmg, healing, health = 0, 0, 0
+    #             mods = []
+    #             for item in self.pot:
+    #                 defn = gameItemDefns[item.subType]
+    #                 healing += defn.healing
+    #                 dmg += defn.dmg
+    #                 mods.extend(defn.mods)
+    #             gameItemDefns[cookedItem.subType] = ItemDefinition(healing=healing, dmg=dmg, mods=mods)
+    #             newHero.pot = []
+    #             debugStr += " Create new item to add to inventory"
     
-    def addUncookedItemsBack(self):
-        for item in self.pot:
-            self.inventory.append(item)
-        self.pot = []
+    # def removeSelectedItem(self, itemList, newHero):
+    #     # TODO Is it okay to assume order is the same across deep copy?
+    #     del itemList[newHero.selectedItemIdx]
+    #     if self.selectedItemIdx > 0:
+    #         newHero.selectedItemIdx -= 1
+    
+    # def addUncookedItemsBack(self):
+    #     for item in self.pot:
+    #         self.inventory.append(item)
+    #     self.pot = []
 
     ########################
-    # Eating
+    # Eating TODO
     ########################
     # Only applicable for edibles
-    def eat(self, game, action, newHero):
-        global debugStr
-        if action == Actions.ENTER:
-            selectedItem = self.inventory[self.selectedItemIdx] # BoardCell
-            if selectedItem.mainType == "edible":
-                itemDefn = gameItemDefns[selectedItem.subType]
-                # Apply dmg, if any
-                newHero.health -= itemDefn.dmg
-                # Apply healing, if any
-                newHero.health += itemDefn.healing
-                # Apply mods, if any
-                for mod in itemDefn.mods:
-                    newHero.mods.add(mod)
-                self.removeSelectedItem(newHero.inventory, newHero)
+    # def eat(self, game, action, newHero):
+    #     global debugStr
+    #     if action == Actions.ENTER:
+    #         selectedItem = self.inventory[self.selectedItemIdx] # BoardCell
+    #         if selectedItem.mainType == "edible":
+    #             itemDefn = gameItemDefns[selectedItem.subType]
+    #             # Apply dmg, if any
+    #             newHero.health -= itemDefn.dmg
+    #             # Apply healing, if any
+    #             newHero.health += itemDefn.healing
+    #             # Apply mods, if any
+    #             for mod in itemDefn.mods:
+    #                 newHero.mods.add(mod)
+    #             self.removeSelectedItem(newHero.inventory, newHero)
                 
     ########################
     # Equip
@@ -423,20 +462,22 @@ def resize(stdscr, game):
 
 def drawList(stdscr, game, itemList, title, posX, posY, displaySelector):
     global debugStr
+    # Draw list title
     stdscr.addstr(posY, posX, title, curses.color_pair(Colors.INVENTORY))
     posY += 1
+    # Draw list. ItemList is a list of BoardCells
     for idx, item in enumerate(itemList):
         color = curses.color_pair(Colors.ITEMS)
         itemString = item.subType
         # Add asterik if item is selected
         if idx == game.hero.selectedItemIdx and displaySelector:
             itemString += " * "
-        # Make item green if is equipped
-        equippedPos = gameItemDefns[item.subType].equipPos
-        if equippedPos != None:
-            for equippedItem in game.hero.equipMap[equippedPos]:
-                if equippedItem.id == item.id:
-                    color = curses.color_pair(Colors.GRASS)
+        # # Make item green if is equipped
+        # equippedPos = gameItemDefns[item.subType].equipPos
+        # if equippedPos != None:
+        #     for equippedItem in game.hero.equipMap[equippedPos]:
+        #         if equippedItem.id == item.id:
+        #             color = curses.color_pair(Colors.GRASS)
         stdscr.addstr(posY, posX, itemString, color)
         posY += 1
 
@@ -447,7 +488,7 @@ def drawBoard(stdscr, game, boardX, boardY):
             x = boardX + i
             y = boardY + j
             if cell.subType == "background":
-                stdscr.addstr(y, x, "k", curses.color_pair(Colors.WATER))
+                stdscr.addstr(y, x, "", curses.color_pair(Colors.WATER))
             elif cell.subType == "unlocked":
                 stdscr.addstr(y, x, "+", curses.color_pair(Colors.WATER))
             elif cell.subType == "wall":
@@ -455,7 +496,7 @@ def drawBoard(stdscr, game, boardX, boardY):
             elif cell.subType == "water":
                 stdscr.addstr(y, x, "~", curses.color_pair(Colors.WATER))
             elif cell.mainType == "weapons":
-                stdscr.addstr(y, x, "|", curses.color_pair(Colors.ITEMS))
+                stdscr.addstr(y, x, "|", curses.color_pair(Colors.HERO))
             elif cell.mainType == "stairsUp":
                 stdscr.addstr(y, x, "<", curses.color_pair(Colors.ITEMS))
             elif cell.mainType == "stairsDown":
@@ -587,10 +628,10 @@ def main(stdscr):
     initColors()
 
     # init random seed
-    # seed = 1556856619.67617421
+    # seed = 1556925148.39278
     seed = time.time()
     random.seed(seed)
-    debugStr += str(seed)
+    debugStr += str(seed) + " | "
 
     game = Game(stdscr, seed)
 
@@ -616,7 +657,7 @@ def main(stdscr):
             elif game.mode == Modes.INVENTORY:
                 game.changeModeFromInventory(action, newHero)
                 hero.moveSelection(game.hero.inventory, action, newHero)
-                hero.eat(game, action, newHero)
+                # hero.eat(game, action, newHero)
                 hero.equip(game, action, newHero)
                 # hero.removeSelectedItem(game.hero.inventory, newHero)
             elif game.mode == Modes.COOK:

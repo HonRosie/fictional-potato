@@ -3,7 +3,7 @@ import curses
 import random
 import time
 from enum import Enum, IntEnum
-from items import BoardCell
+from boardCell import BoardCell
 
 debugStr = ""
 
@@ -374,7 +374,7 @@ class ComplexRoom(Room):
 
         # Place sub-rectangles that comprise of room
         i = 0
-        while i < 8:
+        while i < 30:
             rectangle = Rectangle()
             x = random.randint(0, self.width - rectangle.width)
             y = random.randint(0, self.height - rectangle.height)
@@ -385,32 +385,34 @@ class ComplexRoom(Room):
                 # debugStr += "rect: [" + str(rectangle.left) + "," + str(rectangle.right) + "," + str(rectangle.top) + "," + str(rectangle.bottom) + "] "
 
         # figure out edge ranges
+        # TODO at the moment if rectangle edge shares same coordinate as "max" in that direction, will be ignored.
+        # update so ranges are represented as sets and add new rectangle range to range set
         for rectangle in self.rectangleList:
             if rectangle.left < self.left:
                 self.left = rectangle.left
                 self.leftYRange = [rectangle.top, rectangle.bottom]
-            elif rectangle.left == self.left:
-                # update leftYRange to include new rectangle
-                self.leftYRange[0] = min(rectangle.top, self.leftYRange[0])
-                self.leftYRange[1] = max(rectangle.bottom, self.leftYRange[1])
+            # elif rectangle.left == self.left:
+            #     # update leftYRange to include new rectangle
+            #     self.leftYRange[0] = min(rectangle.top, self.leftYRange[0])
+            #     self.leftYRange[1] = max(rectangle.bottom, self.leftYRange[1])
             if rectangle.right > self.right:
                 self.right = rectangle.right
                 self.rightYRange = [rectangle.top, rectangle.bottom]
-            elif rectangle.right == self.right:
-                self.rightYRange[0] = min(rectangle.top, self.rightYRange[0])
-                self.rightYRange[1] = max(rectangle.bottom, self.rightYRange[1])
+            # elif rectangle.right == self.right:
+            #     self.rightYRange[0] = min(rectangle.top, self.rightYRange[0])
+            #     self.rightYRange[1] = max(rectangle.bottom, self.rightYRange[1])
             if rectangle.top < self.top:
                 self.top = rectangle.top
                 self.topXRange = [rectangle.left, rectangle.right]
-            elif rectangle.top == self.top:
-                self.topXRange[0] = min(rectangle.left, self.topXRange[0])
-                self.topXRange[1] = max(rectangle.right, self.topXRange[1])
+            # elif rectangle.top == self.top:
+            #     self.topXRange[0] = min(rectangle.left, self.topXRange[0])
+            #     self.topXRange[1] = max(rectangle.right, self.topXRange[1])
             if rectangle.bottom > self.bottom:
                 self.bottom = rectangle.bottom
                 self.bottomXRange = [rectangle.left, rectangle.right]
-            elif rectangle.bottom == self.bottom:
-                self.bottomXRange[0] = min(rectangle.left, self.bottomXRange[0])
-                self.bottomXRange[1] = max(rectangle.right, self.bottomXRange[1])
+            # elif rectangle.bottom == self.bottom:
+            #     self.bottomXRange[0] = min(rectangle.left, self.bottomXRange[0])
+            #     self.bottomXRange[1] = max(rectangle.right, self.bottomXRange[1])
 
         # Calculate offset so top and left start are 0, 0
         xOffset = 0 - self.left
@@ -474,7 +476,7 @@ class ComplexRoom(Room):
 
 
 class Rectangle():
-    def __init__(self, minWidth=6, maxWidth=15, minHeight=4, maxHeight=8):
+    def __init__(self, minWidth=3, maxWidth=8, minHeight=4, maxHeight=8):
         minWidth, maxWidth = minWidth, maxWidth
         minHeight, maxHeight = minHeight, maxHeight
         self.width = random.randint(minWidth, maxWidth)
@@ -555,7 +557,7 @@ def main(stdscr):
 
     # init random seed
     # seed = time.time()
-    seed = 1540846192.793206
+    seed = 1556925148.39278
     random.seed(seed)
 
     debugStr += str(seed)

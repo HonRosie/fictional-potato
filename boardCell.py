@@ -6,8 +6,8 @@ class Type(Enum):
     WEAPON = 3
 
 # Board Constants
-BACKGROUND = 1
-WALL = 2
-GRASS = 3
-WATER = 4
-DOORUNLOCKED = 5
+BACKGROUND = 0
+WALL = 1
+GRASS = 2
+WATER = 3
+DOORUNLOCKED = 4

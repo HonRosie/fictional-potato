@@ -44,28 +44,25 @@ class Game:
 
     def changeGameMode(self, action, newHero):
         global debugStr
-        if self.mode == Modes.COOK:
-            self.mode = Modes.PLAY
-            return
-
-        elif self.mode == Modes.PLAY:
+        if self.mode == Modes.PLAY:
             if action == Actions.INVENTORY:
                 newHero.selectedItemIdx = 0
                 self.mode = Modes.INVENTORY
-            if action == Actions.COOK:
-                newHero.selectedItemIdx = 0
-                self.mode = Modes.COOK
             return
 
         elif self.mode == Modes.INVENTORY:
             if action == Actions.INVENTORY:
                 newHero.selectedItemIdx = 0
                 self.mode = Modes.PLAY
-            if action == Actions.COOK:
-                newHero.selectedItemIdx = 0
-                self.mode = Modes.COOK
             return
 
+gameItems = {
+    BACKGROUND: {"type": Type.TERRAIN},
+    GRASS: {"type": Type.TERRAIN},
+    WALL: {"type": Type.TERRAIN},
+    WATER: {"type": Type.TERRAIN},
+    DOORUNLOCKED: {"type": Type.TERRAIN},
+}
 
 #################################
 # Board/Items
@@ -88,6 +85,9 @@ class Board:
         random.seed(seed)
         ######### temp solution #########
         # pick random location 
+        axe = {"itemId": Board.nextItemId, "type": Type.WEAPON, "subtype": "axe", "name": "Axe"}
+        gameItems[axe["itemId"]] = axe
+        Board.nextItemId += 1
         sword = {"itemId": Board.nextItemId, "type": Type.WEAPON, "subtype": "sword", "name": "Sword"}
         gameItems[sword["itemId"]] = sword
         Board.nextItemId += 1
@@ -104,6 +104,11 @@ class Board:
             x, y = self.getRandomValidPosInRoom(room, seed)
             self.grid[y][x] = bow["itemId"]
             debugStr += str(x) + "," + str(y) + " | "
+        randomRooms = random.sample(roomList, 1)
+        for room in randomRooms:
+            x, y = self.getRandomValidPosInRoom(room, seed)
+            self.grid[y][x] = axe["itemId"]
+            debugStr += str(x) + "," + str(y) + " | "
     
 
     def getRandomValidPosInRoom(self, room, seed):
@@ -117,46 +122,6 @@ class Board:
                 return x, y
 
 
-
-class ItemDefinition:
-    def __init__(self, equipPos=None, dmg=0, defense=0, stealth=0, healing=0, mods=[], health=0, inventory=[], info=None):
-        self.equipPos = equipPos
-        self.dmg = dmg # Hero or monster dmg
-        self.defense = defense # Hero or monster defense
-        self.healing = healing # Hero health
-        self.mods = mods # Hero mods
-        self.health = health # monster health
-        self.inventory = inventory # monster inventory
-        self.info = info # message to display upon pick up or use
-
-    def hasEquipPos(self):
-        if self.equipPos != None:
-            return True
-        else:
-            return False
-
-    def hasInfo(self):
-        if self.info != None:
-            return True
-        else:
-            return False
-    
-gameItems = {
-    BACKGROUND: {"type": Type.TERRAIN},
-    GRASS: {"type": Type.TERRAIN},
-    WALL: {"type": Type.TERRAIN},
-    WATER: {"type": Type.TERRAIN},
-    DOORUNLOCKED: {"type": Type.TERRAIN},
-}
-
-maxItemsPerPos = {
-    "head": 1,
-    "body": 1,
-    "dualHands": 1,
-    "hands": 2,
-    "feet": 1,
-}
-
 #################################
 # Hero
 #################################
@@ -167,21 +132,13 @@ class Hero:
         self.y = int(board.height/2)
         self.mods = set()
         self.health = 100
-        # self.equipMap = {
-        #     "head": [],
-        #     "body": [],
-        #     "dualHands": [],
-        #     "hands": [],
-        #     "feet": [],
-        # } # map[pos]BoardCell
-        self.inventory = {} # map[typeId]count
+        self.inventory = {} # map[itemId]count
+        self.orderedInventory = [] # [itemId]
         self.selectedItemIdx = 0
-        # self.pot = []
-        # self.cookState = "inventory"
 
-    ########################
+    #################################
     # Hero movement
-    ########################
+    #################################
     def computeNewPos(self, board, action, ignoreObstacles):
         global debugStr
         newX, newY = self.x, self.y
@@ -204,43 +161,8 @@ class Hero:
         global debugStr
         board = game.boards[game.currBoardId]
         newX, newY = self.computeNewPos(board, action, False)
-
-        # TODO Fix stairs ###############################################
-        # shouldn's need level. Using boardId should suffice as level
-        # If standing on stairs, increment level and update hero position on new board
-        # if currGridSpace.mainType == "stairsUp" or currGridSpace.mainType == "stairsDown":
-        #     if currGridSpace.mainType == "stairsUp":
-        #         game.level += 1
-        #     else:
-        #         game.level -= 1
-        #     # First time using stairs!
-        #     if currGridSpace.subType == None:
-        #         # generate new board
-        #         destinationBoard = Board(game.level, [BoardCell("portals", game.currBoardId)])
-        #         game.boards[destinationBoard.id] = destinationBoard
-
-        #         # update curr board's portal with id of new board
-        #         currGridSpace.subType = destinationBoard.id
-
-        #     # Calculate hero's position on destination board
-        #     newX, newY = self.computePosOnDestinationBoard(board, destinationBoard)
-
-        #     # Set game board to destination board
-        #     game.currBoardId = destinationBoard.id
-
-        ########################################################
-        # set hero's new position
         newHero.x = newX
         newHero.y = newY
-
-    # def computePosOnDestinationBoard(self, oldBoard, destinationBoard):
-    #     destinationGrid = destinationBoard.grid
-    #     for y, row in enumerate(destinationBoard.grid):
-    #         for x, cell in enumerate(row):
-    #             if destinationGrid[y][x].mainType == "portals" and destinationGrid[y][x].subType == oldBoard.id:
-    #                 return x, y
-
-            
 
     def isBlocked(self, board, newX, newY):
         global debugStr
@@ -260,28 +182,26 @@ class Hero:
         # Default to not blocked
         return False
 
-    ########################
+    #################################
     # Pickup item
-    ########################
+    #################################
     def pickup(self, board, action, newHero):
         global debugStr
         newX, newY = self.computeNewPos(board, action, False)
         # Check if there's an item at hero's x,y coordinates    
-        cell = board.grid[newY][newX]
-        cellType = gameItems[cell]["type"]
+        itemId = board.grid[newY][newX]
+        itemType = gameItems[itemId]["type"]
 
-        # Pick up items
-        if cellType == Type.WEAPON:
-            if cell in self.inventory:
-                newHero.inventory[cell] += 1
-            else:
-                newHero.inventory[cell] = 1
+        # Add item to inventory and orderedInventory
+        if itemType == Type.WEAPON:
+            newHero.addToInventory(itemId)
             board.grid[newY][newX] = GRASS
+            debugStr += str(newHero.orderedInventory) + " | "
 
 
-    ########################
-    # Inventory selection
-    ########################
+    #################################
+    # Inventory/Equipment management
+    #################################
     def moveSelection(self, items, action, newHero):
         global debugStr
         numItems = len(items.keys())
@@ -294,150 +214,19 @@ class Hero:
                 newHero.selectedItemIdx -= 1
         # debugStr += str(newHero.selectedItemIdx) + " | "
 
+    def addToInventory(self, itemId):
+        if itemId in self.inventory:
+            self.inventory[itemId] += 1
+        else:
+            self.inventory[itemId] = 1
+            self.orderedInventory.append(itemId)
+            self.orderedInventory.sort(key=lambda itemId: gameItems[itemId]["name"])
 
-    ########################
-    # Cook TODO Make this work again
-    ########################
-    # def cook(self, action, newHero):
-    #     global debugStr
-    #     # Pick which list to arrow through
-    #     if action == Actions.LEFT:
-    #         newHero.selectedItemIdx = 0
-    #         if self.cookState == "cook":
-    #             if len(self.pot) != 0:
-    #                 newHero.cookState = "pot"
-    #             else:
-    #                 newHero.cookState = "inventory"
-    #         elif self.cookState == "pot":
-    #             newHero.cookState = "inventory"
-    #     elif action == Actions.RIGHT:
-    #         newHero.selectedItemIdx = 0
-    #         if self.cookState == "inventory" and len(self.pot) != 0:
-    #             newHero.cookState = "pot"
-    #         elif self.cookState == "pot":
-    #             newHero.cookState = "cook"
-
-    #     # Arrow through selected list
-    #     if self.cookState == "pot":
-    #         self.moveSelection(self.pot, action, newHero)
-    #     elif self.cookState == "inventory":
-    #         self.moveSelection(self.inventory, action, newHero)
-
-    #     # Either add or remove item from pot
-    #     if action == Actions.ENTER:
-    #         if self.cookState == "inventory":
-    #             newHero.pot.append(self.inventory[self.selectedItemIdx])
-    #             self.removeSelectedItem(newHero.inventory, newHero)
-    #         elif self.cookState == "pot":
-    #             newHero.inventory.append(self.pot[self.selectedItemIdx])
-    #             self.removeSelectedItem(newHero.pot, newHero)
-    #         elif self.cookState == "cook":
-    #             cookedItem = BoardCell("edible", "potion")
-    #             cookedItem.subType = "potion" + str(cookedItem.id)
-    #             newHero.inventory.append(cookedItem)
-
-    #             # calculate game definition
-    #             dmg, healing, health = 0, 0, 0
-    #             mods = []
-    #             for item in self.pot:
-    #                 defn = gameItemDefns[item.subType]
-    #                 healing += defn.healing
-    #                 dmg += defn.dmg
-    #                 mods.extend(defn.mods)
-    #             gameItemDefns[cookedItem.subType] = ItemDefinition(healing=healing, dmg=dmg, mods=mods)
-    #             newHero.pot = []
-    #             debugStr += " Create new item to add to inventory"
-    
-    # def removeSelectedItem(self, itemList, newHero):
-    #     # TODO Is it okay to assume order is the same across deep copy?
-    #     del itemList[newHero.selectedItemIdx]
-    #     if self.selectedItemIdx > 0:
-    #         newHero.selectedItemIdx -= 1
-    
-    # def addUncookedItemsBack(self):
-    #     for item in self.pot:
-    #         self.inventory.append(item)
-    #     self.pot = []
-
-    ########################
-    # Eating TODO
-    ########################
-    # Only applicable for edibles
-    # def eat(self, game, action, newHero):
-    #     global debugStr
-    #     if action == Actions.ENTER:
-    #         selectedItem = self.inventory[self.selectedItemIdx] # BoardCell
-    #         if selectedItem.mainType == "edible":
-    #             itemDefn = gameItemDefns[selectedItem.subType]
-    #             # Apply dmg, if any
-    #             newHero.health -= itemDefn.dmg
-    #             # Apply healing, if any
-    #             newHero.health += itemDefn.healing
-    #             # Apply mods, if any
-    #             for mod in itemDefn.mods:
-    #                 newHero.mods.add(mod)
-    #             self.removeSelectedItem(newHero.inventory, newHero)
-                
-    ########################
-    # Equip TODO
-    ########################  
-    # Equip hero with weapon or armour
-    # def equip(self, game, action, newHero):
-    #     global debugStr
-
-    #     if action == Actions.ENTER:
-    #         selectedItem = self.inventory[self.selectedItemIdx] # BoardCell
-    #         itemDefn = gameItemDefns[selectedItem.subType]
-    #         if itemDefn.hasEquipPos():
-    #             possibleEquipPos = itemDefn.equipPos
-
-    #             # Dequip
-    #             # Loop through list of items at possible equip position.
-    #             for idx, currItem in enumerate(self.equipMap[possibleEquipPos]): # Also BoardCell
-    #                 # If item matches selected item, dequip. Comparison by object no longer works
-    #                 # TODO: Suspicion is even though when addied, is adding same item from inventory to equipMap.
-    #                 # However, during deep copy, copies of inventory and equipMap are made, where the items no
-    #                 # longer reference each other
-    #                 # ie. "foo" from inventory() is added to equipMap so it also has "foo".
-    #                 # During deep copy, "foo" in inventory becomes "foo1", and "foo" in equipMap becomes "foo2"?
-    #                 if currItem.id == selectedItem.id:
-    #                     # TODO: Should this instead be a loop which removes the correct id?
-    #                     del newHero.equipMap[possibleEquipPos][idx]
-    #                     for mod in itemDefn.mods:
-    #                         newHero.mods.remove(mod)
-    #                     # debugStr += "dequip" + str(newHero.equipMap[possibleEquipPos])
-    #                     return
-
-    #             # Equip
-    #             # None of items at possible equip position match current selected item. Equip
-    #             numItemsAtEquipPos = len(self.equipMap[possibleEquipPos])
-    #             # EquipPos Count already maxed out
-    #             if numItemsAtEquipPos == maxItemsPerPos[possibleEquipPos]:
-    #                 errorStr = f"You can only have {maxItemsPerPos[possibleEquipPos]!r} items in {possibleEquipPos}"
-    #                 game.messages.append(errorStr)
-    #                 # debugStr += "Too many already: " + str(self.equipMap[possibleEquipPos])
-    #                 return
-    #             # Can't equip dualhanded weapon if already have a one handed weapon
-    #             elif possibleEquipPos == "dualHands" and len(self.equipMap["hands"]) > 0:
-    #                 errorStr = f"This is a 2-handed item and you are already holding another item"
-    #                 game.messages.append(errorStr)
-    #                 # debugStr += "Cannot equp dualhands: " + str(self.equipMap[possibleEquipPos])
-    #                 return
-    #             # Cannot equip any more hand weapons if already holding a dualhanded weapon
-    #             elif possibleEquipPos == "hands" and len(self.equipMap["dualHands"]) == 1:
-    #                 errorStr = f"You don't have enough hands. Drop an item or make friends with an octopus!"
-    #                 game.messages.append(errorStr)
-    #                 # debugStr += "Cannot equp hands: " + str(self.equipMap[possibleEquipPos])
-    #                 return
-    #             # Equip!
-    #             else:
-    #                 newHero.equipMap[possibleEquipPos].append(selectedItem)
-    #                 for mod in itemDefn.mods:
-    #                     newHero.mods.add(mod)
-    #                 # debugStr += "equip: " + str(newHero.equipMap[possibleEquipPos])
-
-                    
-
+    def removeFromInventory(self, itemId):
+        self.inventory[itemId] -= 1
+        if self.inventory[itemId] == 0:
+            del self.inventory[itemId]
+            self.orderedInventory.remove(itemId)
 
 
 #################################
@@ -455,45 +244,19 @@ def resize(stdscr, game):
 
     return maxY, maxX
 
-# Maybe deprecated?
-def drawList(stdscr, game, itemList, title, posX, posY, displaySelector):
-    global debugStr
-    # Draw list title
-    stdscr.addstr(posY, posX, title, curses.color_pair(Colors.INVENTORY))
-    posY += 1
-    # Draw list. ItemList is a list of BoardCells
-    for idx, item in enumerate(itemList):
-        color = curses.color_pair(Colors.ITEMS)
-        itemString = item.subType
-        # Add asterik if item is selected
-        if idx == game.hero.selectedItemIdx and displaySelector:
-            itemString += " * "
-        # # Make item green if is equipped
-        # equippedPos = gameItemDefns[item.subType].equipPos
-        # if equippedPos != None:
-        #     for equippedItem in game.hero.equipMap[equippedPos]:
-        #         if equippedItem.id == item.id:
-        #             color = curses.color_pair(Colors.GRASS)
-        stdscr.addstr(posY, posX, itemString, color)
-        posY += 1
-
 # Draws a bunch of items in a list(non-Pythonic) format
-def drawListOfThings(stdscr, game, items, title, posX, posY, displaySelector):
+def drawInventory(stdscr, game, items, title, posX, posY, displaySelector):
     global debugStr
     # Draw title
     stdscr.addstr(posY, posX, title, curses.color_pair(Colors.INVENTORY))
     posY += 1
 
-    # items -> map[itemId]count
-    itemsList = [] # [(itemId, name)]
-    for itemId in items.keys():
-        name = gameItems[itemId]["name"]
-        itemsList.append((itemId, name))
-    itemsList.sort(key=lambda tup: tup[1])
+    # items -> [itemIds]
     itemColor = curses.color_pair(Colors.ITEMS)
-    for idx, (itemId, name) in enumerate(itemsList):
+    for idx, itemId in enumerate(items):
+        name = gameItems[itemId]["name"]
         # append quantity
-        numItems = items[itemId]
+        numItems = game.hero.inventory[itemId]
         if numItems > 1:
             numString = " (" + str(numItems) + ")"
             name += numString
@@ -521,54 +284,11 @@ def drawBoard(stdscr, game, boardX, boardY):
                 stdscr.addstr(y, x, "~", curses.color_pair(Colors.WATER))
             elif cellType == Type.WEAPON:
                 stdscr.addstr(y, x, "&", curses.color_pair(Colors.HERO))
-            # elif cell.mainType == "stairsUp":
-            #     stdscr.addstr(y, x, "<", curses.color_pair(Colors.ITEMS))
-            # elif cell.mainType == "stairsDown":
-            #     stdscr.addstr(y, x, ">", curses.color_pair(Colors.ITEMS))
-            # elif cell.subType == "mushroom":
-            #     stdscr.addstr(y, x, "m", curses.color_pair(Colors.ITEMS))
             else:
                 stdscr.addstr(y, x, ".", curses.color_pair(Colors.GRASS))
 
 def drawHero(stdscr, game, heroX, heroY):
     stdscr.addstr(heroY, heroX, "h", curses.color_pair(Colors.HERO))
-
-# def drawHeroStats(stdscr, game, heroStatsX, heroStatsY, maxY, maxX):
-#     heroStatsX = maxX - 20
-#     heroStatsY = game.boardOriginY
-#     stdscr.addstr(heroStatsY, heroStatsX, "Hero Stats")
-#     heroStatsY += 1
-#     stdscr.addstr(heroStatsY, heroStatsX, "Health: " + str(game.hero.health))
-#     heroDmg, heroDefense = 0, 0
-#     for pos, itemList in game.hero.equipMap.items():
-#         for item in itemList:
-#             itemDefn = gameItemDefns[item.subType]
-#             heroDmg += itemDefn.dmg
-#             heroDefense += itemDefn.defense
-#     heroStatsY += 1                
-#     stdscr.addstr(heroStatsY, heroStatsX, "Damage: " + str(heroDmg))
-#     heroStatsY += 1
-#     stdscr.addstr(heroStatsY, heroStatsX, "Defense: " + str(heroDefense))
-#     for mods in game.hero.mods:
-#         heroStatsY += 1
-#         stdscr.addstr(heroStatsY, heroStatsX, mods)
-
-# def drawCookMode(stdscr, game):
-#     inventoryX = game.boardOriginX
-#     inventoryY = game.boardOriginY
-#     displaySelector = game.hero.cookState == "inventory"
-#     drawList(stdscr, game, game.hero.inventory, "Inventory", inventoryX, inventoryY, displaySelector)
-
-#     potX = game.boardOriginX + 30
-#     potY = game.boardOriginY
-#     displaySelector = game.hero.cookState == "pot"
-#     drawList(stdscr, game, game.hero.pot, "Pot", potX, potY, displaySelector)
-
-#     # Cook
-#     cookString = "Cook?"
-#     if game.hero.cookState == "cook":
-#         cookString += " * "
-#     stdscr.addstr(game.boardOriginY, potX + 30, cookString, curses.color_pair(Colors.INVENTORY))
 
 
 def drawPlayMode(stdscr, game, maxY, maxX):
@@ -582,16 +302,11 @@ def drawPlayMode(stdscr, game, maxY, maxX):
     heroY = game.hero.y + game.boardOriginY
     drawHero(stdscr, game, heroX, heroY)
 
-    # Draw hero stats
-    # heroStatsX = maxX - 20
-    # heroStatsY = game.boardOriginY
-    # drawHeroStats(stdscr, game, heroStatsX, heroStatsY, maxY, maxX)
-
     # Draw inventory
     inventoryX = 0
     inventoryY = game.boardOriginY
     displaySelector = game.mode == Modes.INVENTORY
-    drawListOfThings(stdscr, game, game.hero.inventory, "Inventory", inventoryX, inventoryY, displaySelector)
+    drawInventory(stdscr, game, game.hero.orderedInventory, "Inventory", inventoryX, inventoryY, displaySelector)
 
 
 def draw(stdscr, game):
@@ -609,9 +324,7 @@ def draw(stdscr, game):
     game.messages = []
 
     # Draw game mode specific things
-    if game.mode == Modes.COOK:
-        drawCookMode(stdscr, game)
-    elif game.mode == Modes.PLAY or game.mode == Modes.INVENTORY:
+    if game.mode == Modes.PLAY or game.mode == Modes.INVENTORY:
         drawPlayMode(stdscr, game, maxY, maxX)
     
     # Draw debug panel
@@ -652,8 +365,8 @@ def main(stdscr):
     initColors()
 
     # init random seed
-    # seed = 1557090574.951404
-    seed = time.time()
+    seed = 1557099878.4324212
+    # seed = time.time()
     random.seed(seed)
     debugStr += str(seed) + " | "
 
@@ -676,18 +389,10 @@ def main(stdscr):
             if game.mode == Modes.PLAY:
                 game.changeGameMode(action, newHero)
                 hero.move(game, action, newHero)
-                # Hero should pick up items regardless of what action is being taken
                 hero.pickup(currBoard, action, newHero)
-                # hero.combat(game, currBoard, action, newHero)
             elif game.mode == Modes.INVENTORY:
                 game.changeGameMode(action, newHero)
                 hero.moveSelection(game.hero.inventory, action, newHero)
-                # hero.eat(game, action, newHero)
-                # hero.equip(game, action, newHero)
-                # hero.removeSelectedItem(game.hero.inventory, newHero)
-            elif game.mode == Modes.COOK:
-                game.changeGameMode(action, newHero)
-                # hero.cook(action, newHero)
             game.hero = newHero
             # draw(stdscr, game)
 
